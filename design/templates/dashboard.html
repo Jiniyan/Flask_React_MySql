@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Testing Dashboard</title>
+    <link href="{% static 'polls/output.css' %}" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navbar -->
+    <nav class="bg-blue-600 text-white p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between">
+            <h1 class="text-2xl font-semibold">Testing Dashboard</h1>
+            <div>
+                <a href="/welcome" class="px-3 py-2 hover:bg-blue-500 rounded">Home</a>
+                <a href="#" class="px-3 py-2 hover:bg-blue-500 rounded">Reports</a>
+                <a href="#" class="px-3 py-2 hover:bg-blue-500 rounded">Settings</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Dashboard Content -->
+    <div class="container mx-auto p-6">
+        <!-- Dashboard Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-lg font-semibold">Total Tests</h2>
+                <p class="text-3xl font-bold text-blue-500">150</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-lg font-semibold">Active Simulations</h2>
+                <p class="text-3xl font-bold text-green-500">3</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-lg font-semibold">Errors Detected</h2>
+                <p class="text-3xl font-bold text-red-500">5</p>
+            </div>
+        </div>
+
+        <!-- Controls for Current Simulation -->
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-semibold mb-4">Simulation Controls</h2>
+            <form action="{% url 'update_simulation' %}" method="POST" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label for="frequency" class="block text-lg font-medium">Frequency (Hz)</label>
+                    <input 
+                        type="range" 
+                        name="frequency" 
+                        id="frequency" 
+                        min="0" 
+                        max="100" 
+                        value="30" 
+                        class="w-full h-2 bg-gray-200 rounded-lg cursor-pointer">
+                    <p class="text-center mt-2" id="frequencyValue">30 Hz</p>
+                </div>
+
+                <div>
+                    <label for="amplitude" class="block text-lg font-medium">Amplitude (ms<sup>2</sup>)</label>
+                    <input 
+                        type="range" 
+                        name="amplitude" 
+                        id="amplitude" 
+                        min="0" 
+                        max="60" 
+                        value="30" 
+                        class="w-full h-2 bg-gray-200 rounded-lg cursor-pointer">
+                    <p class="text-center mt-2" id="amplitudeValue">30 ms<sup>2</sup></p>
+                </div>
+
+                <button 
+                    type="submit" 
+                    class="mt-4 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+                    Update Simulation
+                </button>
+            </form>
+        </div>
+
+        <!-- Recent Tests Table -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">Recent Tests</h2>
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr>
+                        <th class="border-b p-4 text-left">Test ID</th>
+                        <th class="border-b p-4 text-left">Battery Type</th>
+                        <th class="border-b p-4 text-left">Status</th>
+                        <th class="border-b p-4 text-left">Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="border-b p-4">#001</td>
+                        <td class="border-b p-4">12N12</td>
+                        <td class="border-b p-4 text-green-500">Completed</td>
+                        <td class="border-b p-4">2 hrs</td>
+                    </tr>
+                    <tr>
+                        <td class="border-b p-4">#002</td>
+                        <td class="border-b p-4">12N12-3B</td>
+                        <td class="border-b p-4 text-yellow-500">In Progress</td>
+                        <td class="border-b p-4">1 hr</td>
+                    </tr>
+                    <tr>
+                        <td class="border-b p-4">#003</td>
+                        <td class="border-b p-4">12N12</td>
+                        <td class="border-b p-4 text-red-500">Error</td>
+                        <td class="border-b p-4">30 mins</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const frequencyInput = document.getElementById('frequency');
+        const amplitudeInput = document.getElementById('amplitude');
+        const frequencyValue = document.getElementById('frequencyValue');
+        const amplitudeValue = document.getElementById('amplitudeValue');
+
+        frequencyInput.addEventListener('input', (e) => {
+            frequencyValue.textContent = `${e.target.value} Hz`;
+        });
+
+        amplitudeInput.addEventListener('input', (e) => {
+            amplitudeValue.textContent = `${e.target.value} ms²`;
+        });
+    </script>
+</body>
+</html>
