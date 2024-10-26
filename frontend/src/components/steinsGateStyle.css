@@ -1,0 +1,83 @@
+/* Steins;Gate Green */
+.text-steins-green {
+    color: #00FF41; /* Matrix green */
+  }
+  
+  .bg-steins-green {
+    background-color: #00FF41; /* Matrix green */
+  }
+  
+  /* Button hover effects */
+  .btn-hover-green:hover {
+    box-shadow: 0 0 10px #00FF41, 0 0 20px #00FF41;
+  }
+  
+  .btn-hover-blue:hover {
+    box-shadow: 0 0 10px #007BFF, 0 0 20px #007BFF;
+  }
+  
+  /* Loading screen styling */
+  .loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000000; /* Dark background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .loading-text {
+    font-size: 2rem;
+    color: #00FF41; /* Matrix green */
+    font-family: 'Courier New', Courier, monospace;
+    animation: flicker 1.5s infinite;
+  }
+  
+  /* Fade animations for content transition */
+  .fade-in {
+    opacity: 0;
+    animation: fadeIn 0.6s ease-in-out forwards;
+  }
+  
+  .fade-out {
+    opacity: 1;
+    animation: fadeOut 0.6s ease-in-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  
+  /* Modal border */
+  .modal-content {
+    border: 2px solid #00FF41; /* Steins;Gate green */
+  }
+  
+  /* Flickering effect for loading */
+  @keyframes flicker {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  

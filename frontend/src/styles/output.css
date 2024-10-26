@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* Steins;Gate Green */
+.text-steins-green {
+    color: #00FF41; /* Matrix green */
+  }
+  
+  .bg-steins-green {
+    background-color: #00FF41; /* Matrix green */
+  }
+  
+  /* Custom slider for Steins;Gate theme */
+  .bg-steins-slider {
+    background: linear-gradient(to right, #00FF41, #006400); /* Green gradient slider */
+  }
+  
+  /* Glow effect when input values change */
+  .input-changed {
+    animation: pulse 0.4s ease-in-out;
+  }
+  
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 10px #00FF41;
+    }
+    100% {
+      box-shadow: none;
+    }
+  }
+  
+  /* Button hover effects */
+  button:hover {
+    box-shadow: 0 0 10px #00FF41, 0 0 20px #00FF41;
+  }
+  
+  /* Loader for Create/Update Simulation buttons */
+  .loader {
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #00FF41;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    animation: spin 1s linear infinite;
+    position: absolute;
+    right: 10px;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  /* Glowing effect for text */
+  h2 {
+    text-shadow: 0 0 10px #00FF41;
+  }
+  
+  /* Tooltip styles */
+  label span {
+    font-size: 0.8rem;
+    margin-left: 5px;
+  }
+  
