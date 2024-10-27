@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './steinsGateStyle.css'
 import '../styles/output.css'; // Custom CSS for Steins;Gate theme and enhancements
 
 const SimulationControls = ({ frequency, setFrequency, amplitude, setAmplitude, duration, setDuration }) => {
@@ -35,7 +36,7 @@ const SimulationControls = ({ frequency, setFrequency, amplitude, setAmplitude, 
   };
 
   return (
-    <div className="bg-gray-900 p-6 rounded-lg shadow mb-6">
+    <div className="bg-gray-900 p-6 rounded-lg shadow mb-6 border">
       <h2 className="text-xl font-semibold mb-4 text-steins-green">Simulation Controls</h2>
       <form className="space-y-4">
         {/* Frequency Control */}

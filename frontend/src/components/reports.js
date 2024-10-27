@@ -1,71 +1,71 @@
 import React, { useEffect, useState } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import './steinsGateStyle.css'; // Custom CSS for animations and Steins;Gate aesthetic
+import './steinsGateStyle.css';
+import axiosInstance from '../utils/axiosInstance';  // Import the custom Axios instance
+import Navbar from './Navbar';  // Import Navbar component
 
 function SimulationReports() {
-  const [reports, setReports] = useState([]);
-  const [selectedReport, setSelectedReport] = useState(null); // For the modal
-  const [isModalOpen, setIsModalOpen] = useState(false); // Modal open state
+  const [reports, setReports] = useState([]);  // Initialize as an empty array
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [nextPage, setNextPage] = useState(null);
   const [prevPage, setPrevPage] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false); // New loading state for transitions
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Function to fetch reports with Axios instance
   const fetchReports = async (page = 1) => {
-    setIsLoading(true); // Show the loading screen when fetching data
+    setIsLoading(true);
     try {
-      const response = await fetch(`/api/simulation-reports/?page=${page}`);
-      const data = await response.json();
-      setReports(data.results);
-      setNextPage(data.next);
-      setPrevPage(data.previous);
+      console.log(`Fetching reports from page ${page}`);
+      const response = await axiosInstance.get(`/api/simulation-reports/?page=${page}`);
+      console.log('Received data:', response.data);
+      setReports(response.data.results || []);
+      setNextPage(response.data.next);
+      setPrevPage(response.data.previous);
       setCurrentPage(page);
     } catch (error) {
       console.error('Failed to fetch reports:', error);
+      setReports([]);  // Set fallback to empty array in case of an error
     } finally {
-      setIsLoading(false); // Hide the loading screen after data is fetched
+      setIsLoading(false);
     }
   };
+  
 
+  // Fetch reports on component mount
   useEffect(() => {
-    fetchReports();
+    fetchReports();  // Call the function to fetch reports
   }, []);
 
-  // Function to open the modal with the selected report
+  // Modal handling
   const openModal = (report) => {
     setSelectedReport(report);
     setIsModalOpen(true);
   };
 
-  // Function to close the modal
   const closeModal = () => {
     setSelectedReport(null);
     setIsModalOpen(false);
   };
 
-  // Function to convert report data to XML format
+  // Generate XML for download
   const generateXML = (report) => {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<simulationReport>\n`;
     xml += `<id>${report.id}</id>\n`;
     xml += `<frequency>${report.frequency}</frequency>\n`;
     xml += `<intensity>${report.intensity}</intensity>\n`;
     xml += `<duration>${report.duration}</duration>\n`;
-    xml += `<vibrationLevel>${report.vibration_level}</vibrationLevel>\n`;
-    xml += `<dataPoints>\n`;
-
-    report.data_points.forEach((point, index) => {
-      xml += `  <dataPoint>\n`;
-      xml += `    <time>${point.time}</time>\n`;
-      xml += `    <frequency>${point.frequency}</frequency>\n`;
-      xml += `    <intensity>${point.intensity}</intensity>\n`;
-      xml += `  </dataPoint>\n`;
+    xml += `<vibrationLevel>${report.vibration_level}</vibrationLevel>\n<dataPoints>\n`;
+    
+    report.data_points?.forEach((point) => {
+      xml += `  <dataPoint>\n    <time>${point.time}</time>\n    <frequency>${point.frequency}</frequency>\n    <intensity>${point.intensity}</intensity>\n  </dataPoint>\n`;
     });
-
+    
     xml += `</dataPoints>\n</simulationReport>`;
     return xml;
   };
 
-  // Function to download XML
   const downloadXML = (report) => {
     const xmlData = generateXML(report);
     const blob = new Blob([xmlData], { type: 'application/xml' });
@@ -78,32 +78,29 @@ function SimulationReports() {
   };
 
   return (
-    <div className="container mx-auto p-6 bg-dark text-white">
-      {/* Loading Screen */}
+    <div className="bg-gray-900 min-h-screen text-white"> {/* Apply Steins;Gate black background */}
+      {/* Navbar Component */}
+      <Navbar />
+
+      {/* Simulation Reports Table */}
       {isLoading && (
         <div className="loading-screen">
           <div className="loading-text">Loading...</div>
         </div>
       )}
 
-      {/* Content */}
-      <div className={`content-container ${isLoading ? 'fade-out' : 'fade-in'}`}>
-        <div className="d-flex justify-content-between mb-8">
-          <h1 className="text-4xl font-bold text-steins-green">Simulation Reports</h1>
-          <a href="/dashboard" className="btn btn-outline-light btn-hover-green">Dashboard</a>
-        </div>
-
+      <div className={`container content-container p-6 ${isLoading ? 'fade-out' : 'fade-in'}`}>
         <div className="table-responsive">
           <table className="table table-hover table-dark table-striped rounded shadow-lg">
             <thead>
               <tr>
-                <th scope="col">ID</th>
-                <th scope="col">Data Points</th>
-                <th scope="col">Frequency</th>
-                <th scope="col">Intensity</th>
-                <th scope="col">Duration (seconds)</th>
-                <th scope="col">Vibration Level</th>
-                <th scope="col">Actions</th>
+                <th>ID</th>
+                <th>Data Points</th>
+                <th>Frequency</th>
+                <th>Intensity</th>
+                <th>Duration (seconds)</th>
+                <th>Vibration Level</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -111,24 +108,14 @@ function SimulationReports() {
                 <tr key={report.id}>
                   <td>{report.id}</td>
                   <td>
-                    <button
-                      onClick={() => openModal(report)}
-                      className="btn btn-primary btn-hover-blue"
-                    >
-                      View Data Points
-                    </button>
+                    <button onClick={() => openModal(report)} className="btn btn-steins-blue">View Data Points</button>
                   </td>
                   <td>{report.frequency}</td>
                   <td>{report.intensity}</td>
                   <td>{report.duration}</td>
                   <td>{report.vibration_level}</td>
                   <td>
-                    <button
-                      onClick={() => downloadXML(report)}
-                      className="btn btn-success btn-hover-green"
-                    >
-                      Download XML
-                    </button>
+                    <button onClick={() => downloadXML(report)} className="btn btn-steins-green">Download XML</button>
                   </td>
                 </tr>
               ))}
@@ -136,48 +123,36 @@ function SimulationReports() {
           </table>
         </div>
 
-        {/* Pagination controls */}
-        <div className="d-flex justify-content-center mt-6">
-          <button
-            onClick={() => fetchReports(currentPage - 1)}
-            disabled={!prevPage}
-            className={`btn btn-outline-light btn-hover-green me-2 ${!prevPage ? 'disabled' : ''}`}
-          >
+        <div className="pagination-container d-flex justify-content-between mt-4">
+          <button onClick={() => fetchReports(currentPage - 1)} disabled={!prevPage} className="btn btn-outline-light">
             Previous
           </button>
-          <button
-            onClick={() => fetchReports(currentPage + 1)}
-            disabled={!nextPage}
-            className={`btn btn-outline-light btn-hover-green ms-2 ${!nextPage ? 'disabled' : ''}`}
-          >
+          <button onClick={() => fetchReports(currentPage + 1)} disabled={!nextPage} className="btn btn-outline-light">
             Next
           </button>
         </div>
       </div>
 
-      {/* Modal for displaying data points */}
+      {/* Modal for viewing data points */}
       {isModalOpen && selectedReport && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div className="modal-content bg-dark text-white border border-steins-green">
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content bg-dark text-white">
               <div className="modal-header">
                 <h5 className="modal-title">Data Points for Report {selectedReport.id}</h5>
                 <button type="button" className="btn-close btn-close-white" aria-label="Close" onClick={closeModal}></button>
               </div>
               <div className="modal-body overflow-auto">
                 <ul className="list-group">
-                  {selectedReport.data_points.map((point, index) => (
+                  {selectedReport.data_points?.map((point, index) => (
                     <li key={index} className="list-group-item bg-dark text-white">
-                      <strong>Time:</strong> {point.time}s, <strong>Frequency:</strong> {point.frequency}Hz,{' '}
-                      <strong>Intensity:</strong> {point.intensity}
+                      <strong>Time:</strong> {point.time}s, <strong>Frequency:</strong> {point.frequency}Hz, <strong>Intensity:</strong> {point.intensity}
                     </li>
                   ))}
                 </ul>
               </div>
               <div className="modal-footer">
-                <button onClick={closeModal} className="btn btn-outline-light btn-hover-green">
-                  Close
-                </button>
+                <button onClick={closeModal} className="btn btn-outline-light">Close</button>
               </div>
             </div>
           </div>

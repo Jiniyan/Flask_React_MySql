@@ -1,4 +1,3 @@
-
 import React from 'react';
 import '../styles/output.css'; // Assuming output.css is placed in your public folder or accessible
 

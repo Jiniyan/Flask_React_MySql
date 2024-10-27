@@ -1,30 +1,30 @@
+// src/components/Dashboard.js
 import React, { useState, useEffect, useRef } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import '../styles/output.css'; // Assuming output.css is placed in your public folder or accessible
+import '../styles/output.css';
 import SimulationControls from './SimulationControls';
 import WaveformDisplay from './WaveformDisplay';
 import RecentTests from './RecentTests';
+import Navbar from './Navbar';  // Import the Navbar component
 
 const Dashboard = () => {
-  const [frequency, setFrequency] = useState(30); // Target frequency
-  const [amplitude, setAmplitude] = useState(30); // Target amplitude
-  const [duration, setDuration] = useState(60); // Duration in minutes
+  const [frequency, setFrequency] = useState(30);
+  const [amplitude, setAmplitude] = useState(30);
+  const [duration, setDuration] = useState(60);
   const canvasRef = useRef(null);
 
-  // Randomized sensor input for actual frequency and amplitude (hypothetical sensor data)
   const getRandomSensorData = () => ({
-    actualFrequency: Math.random() * 5 + 1, // Random frequency between 1 and 6 Hz
-    actualAmplitude: Math.random() * 50 + 10 // Random amplitude between 10 and 60
+    actualFrequency: Math.random() * 5 + 1,
+    actualAmplitude: Math.random() * 50 + 10
   });
 
-  // Function to draw the sine wave on the canvas (representing actual sensor data)
   const drawWave = (ctx, frequency, amplitude, time) => {
     const width = ctx.canvas.width;
     const height = ctx.canvas.height;
     const midY = height / 2;
     const waveLength = width / frequency;
     
-    ctx.clearRect(0, 0, width, height); // Clear previous wave
+    ctx.clearRect(0, 0, width, height);
     ctx.beginPath();
 
     for (let x = 0; x < width; x++) {
@@ -33,7 +33,7 @@ const Dashboard = () => {
       ctx.lineTo(x, y);
     }
 
-    ctx.strokeStyle = '#00FF41'; // Matrix-like green color
+    ctx.strokeStyle = '#00FF41';
     ctx.lineWidth = 2;
     ctx.stroke();
   };
@@ -51,28 +51,18 @@ const Dashboard = () => {
       animationFrameId = requestAnimationFrame(animate);
     };
 
-    animate(); // Start animation
+    animate();
 
-    return () => cancelAnimationFrame(animationFrameId); // Clean up
+    return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
   return (
     <div className="bg-black min-h-screen text-white">
       {/* Navbar */}
-      <nav className="bg-gray-900 text-green-400 p-4 shadow-lg">
-        <div className="container mx-auto flex justify-between">
-          <h1 className="text-3xl font-semibold">Vibration Simulation Dashboard</h1>
-          <div>
-            <a href="/" className="px-3 py-2 hover:bg-gray-800 rounded">Home</a>
-            <a href="/reports" className="px-3 py-2 hover:bg-gray-800 rounded">Reports</a>
-            <a href="#" className="px-3 py-2 hover:bg-gray-800 rounded">Settings</a>
-          </div>
-        </div>
-      </nav>
+      <Navbar /> {/* Use the Navbar component here */}
 
       {/* Dashboard Content */}
       <div className="container mx-auto p-6">
-        {/* Simulation Controls Section */}
         <SimulationControls 
           frequency={frequency} 
           setFrequency={setFrequency} 
@@ -82,10 +72,8 @@ const Dashboard = () => {
           setDuration={setDuration}
         />
 
-        {/* Waveform Display Section */}
         <WaveformDisplay canvasRef={canvasRef} />
 
-        {/* Recent Tests Section */}
         <RecentTests />
       </div>
     </div>

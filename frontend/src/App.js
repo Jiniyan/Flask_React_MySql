@@ -1,34 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import Dashboard from './components/dashboard.js';
-import Welcome from './components/welcome.js';
-import SimulationReports from './components/reports.js';
-import './styles/output.css';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import './App.css';
-import './index.css';
+import React, { useEffect,} from 'react';
 
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import Dashboard from './components/dashboard';
+import Welcome from './components/welcome';
+import SimulationReports from './components/reports';
+import Settings from './components/settings';
+import Login from './components/Login';  // Import the Login component
+import PrivateRoute from './components/PrivateRoute';  // Import PrivateRoute
+import './styles/output.css';
 
 function App() {
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
-      axios.get('/api/data/')
-          .then(response => setMessage(response.data.message))
-          .catch(error => console.error('Error fetching data:', error));
   }, []);
 
   return (
     <Router>
-      <div>
-        <p>{message}</p> {/* Display the fetched message here */}
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/" element={<Welcome />} />
-          <Route path="/reports" element={<SimulationReports />} />
-        </Routes>
-      </div>
+      <Routes>
+        <Route path="/" element={<Welcome />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+        <Route path="/reports" element={<PrivateRoute><SimulationReports /></PrivateRoute>} />
+        <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+
+      </Routes>
     </Router>
   );
 }
