@@ -1,6 +1,7 @@
-from flask import Flask, send_from_directory, redirect, request
+from flask import Flask, send_from_directory, redirect
 from flask_cors import CORS
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from config import Config
 from db import db
 from models import User, Simulation, SimulationResult, Control, Sensor
@@ -9,21 +10,24 @@ import os
 import requests
 from routes import reports_bp  # Import the blueprint
 
-
 app = Flask(__name__, static_folder='../frontend/build', static_url_path='/')
 app.config.from_object(Config)
 
-app.register_blueprint(reports_bp)  # Register blueprint
 # Initialize extensions
 CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
 db.init_app(app)
+
+# Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login'
 
-
-# Register blueprint
+# Register blueprints
 app.register_blueprint(auth, url_prefix='/auth')
+app.register_blueprint(reports_bp)  # Register blueprint for reports
+
+# Initialize Flask-Migrate
+migrate = Migrate(app, db)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -59,10 +63,7 @@ def not_found(e):
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-    
-    app.env = "development"
+        db.create_all()  # Create database tables
+
+    app.env = os.getenv('FLASK_ENV', 'development')  # Set environment
     app.run(debug=True)
-
-
-    
