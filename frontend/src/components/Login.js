@@ -1,7 +1,6 @@
 // src/components/Login.js
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
+import axiosInstance from '../utils/axiosInstance';  // Use the custom Axios instance
 import { getCookie } from '../utils/csrfHelper';  // Import the helper function
 import { useNavigate } from 'react-router-dom';
 import './steinsGateStyle.css';  // Import Steins;Gate styling
@@ -19,11 +18,10 @@ const Login = () => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      // If token is found, redirect to the dashboard
       setAuthenticated(true);
       navigate('/dashboard');
     }
-  }, [navigate]);  // Run the effect when the component mounts
+  }, [navigate]);  
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -32,35 +30,33 @@ const Login = () => {
     try {
       const csrftoken = getCookie('csrftoken');
   
-      const response = await axios.post('http://localhost:5000/auth/login', {
-        identifier: username,  // Use a generic 'identifier' for either email or username
+      const response = await axiosInstance.post('/auth/login', {
+        identifier: username,
         password,
       }, {
         headers: {
           'X-CSRFToken': csrftoken,
         },
-        withCredentials: true,
       });
   
-      localStorage.setItem('token', response.data.key);  // Save the token in localStorage
+      localStorage.setItem('token', response.data.key);  
       setAuthenticated(true);
       setError('');
-      navigate('/dashboard');  // Redirect to the dashboard
+      navigate('/dashboard');  
     } catch (err) {
       setError('Invalid username/email or password.');
     } finally {
       setLoading(false);
     }
   };
-  
 
   if (authenticated) {
     return <p className="text-steins-green">Redirecting to the dashboard...</p>;
   }
 
   return (
-    <div className="login-container steins-bg">  {/* Steins;Gate Background */}
-      <div className="login-box steins-box">  {/* Steins;Gate styled box */}
+    <div className="login-container steins-bg">
+      <div className="login-box steins-box">
         <h2 className="text-steins-green text-center mb-6">Login</h2>
         <form onSubmit={handleLogin}>
           <div className="form-group">

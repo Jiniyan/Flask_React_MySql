@@ -26,7 +26,7 @@ def register():
         return jsonify({"error": "User already exists!"}), 409
 
 @auth.route('/login', methods=['POST'])
-@cross_origin(origin='http://localhost:3000', supports_credentials=True)
+@cross_origin(origins=['http://localhost:3000', 'https://*.ngrok.app'], supports_credentials=True)  # Allow both localhost and Ngrok
 def login():
     data = request.json
     identifier = data.get('identifier')  # Username or email
@@ -49,8 +49,6 @@ def login():
         print("User not found.")
 
     return jsonify({"error": "Invalid username/email or password."}), 401
-
-    
 
 @auth.route('/dashboard')
 @login_required

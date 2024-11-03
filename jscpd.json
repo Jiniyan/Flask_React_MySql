@@ -1,0 +1,14 @@
+{
+    "path": ".",
+    "languages": ["python", "javascript"],
+    "minLines": 10,
+    "minTokens": 100,
+    "reporters": ["json"],
+    "output": "reports/",
+    "ignore": [
+      "**venv/**",
+      "**/node_modules/**",
+      "frontend/node_modules/**"
+    ]
+  }
+  

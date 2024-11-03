@@ -2,8 +2,10 @@
 import axios from 'axios';
 import { getCookie } from './csrfHelper';  // Helper to get CSRF token from cookies
 
+// Determine the base URL dynamically
+const isNgrok = window.location.hostname.endsWith('.ngrok.app');  // Check if the hostname ends with .ngrok.app
 const axiosInstance = axios.create({
-  baseURL: 'http://127.0.0.1:5000',  // Your Django backend URL
+  baseURL: isNgrok ? window.location.origin : 'http://127.0.0.1:5000',  // Use Ngrok or localhost
   withCredentials: true,  // Send cookies with each request
 });
 
