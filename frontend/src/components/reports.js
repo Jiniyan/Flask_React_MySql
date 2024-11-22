@@ -13,6 +13,18 @@ function SimulationReports() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Function to convert duration from hr/min/sec to a readable format
+  const formatDuration = (durationString) => {
+    const match = durationString.match(/(\d+) hr\s(\d+) min\s(\d+) sec/);
+    if (match) {
+      const hours = parseInt(match[1], 10);
+      const minutes = parseInt(match[2], 10);
+      const seconds = parseInt(match[3], 10);
+      return `${hours}hr / ${minutes}min / ${seconds}sec`;
+    }
+    return '0hr / 0min / 0sec';
+  };
+
   // Function to fetch reports with Axios instance
   const fetchReports = async (page = 1) => {
     setIsLoading(true);
@@ -31,7 +43,6 @@ function SimulationReports() {
       setIsLoading(false);
     }
   };
-  
 
   // Fetch reports on component mount
   useEffect(() => {
@@ -98,7 +109,7 @@ function SimulationReports() {
                 <th>Data Points</th>
                 <th>Frequency</th>
                 <th>Intensity</th>
-                <th>Duration (seconds)</th>
+                <th>Duration (hr/min/sec)</th>
                 <th>Vibration Level</th>
                 <th>Actions</th>
               </tr>
@@ -112,7 +123,7 @@ function SimulationReports() {
                   </td>
                   <td>{report.frequency}</td>
                   <td>{report.intensity}</td>
-                  <td>{report.duration}</td>
+                  <td>{formatDuration(report.duration)}</td>
                   <td>{report.vibration_level}</td>
                   <td>
                     <button onClick={() => downloadXML(report)} className="btn btn-steins-green">Download XML</button>
@@ -135,18 +146,18 @@ function SimulationReports() {
 
       {/* Modal for viewing data points */}
       {isModalOpen && selectedReport && (
-        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}>
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)', maxHeight: '90vh', overflowY: 'auto' }}>
           <div className="modal-dialog modal-lg">
             <div className="modal-content bg-dark text-white">
               <div className="modal-header">
                 <h5 className="modal-title">Data Points for Report {selectedReport.id}</h5>
                 <button type="button" className="btn-close btn-close-white" aria-label="Close" onClick={closeModal}></button>
               </div>
-              <div className="modal-body overflow-auto">
+              <div className="modal-body overflow-auto" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
                 <ul className="list-group">
                   {selectedReport.data_points?.map((point, index) => (
                     <li key={index} className="list-group-item bg-dark text-white">
-                      <strong>Time:</strong> {point.time}s, <strong>Frequency:</strong> {point.frequency}Hz, <strong>Intensity:</strong> {point.intensity}
+                      <strong>Time:</strong> {point.time}, <strong>Frequency:</strong> {point.frequency}Hz, <strong>Intensity:</strong> {point.intensity}
                     </li>
                   ))}
                 </ul>

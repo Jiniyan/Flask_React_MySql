@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';  // Import the Navbar component
+import axiosInstance from '../utils/axiosInstance';  // Import the custom Axios instance for API calls
+import { useNavigate } from 'react-router-dom';  // Import useNavigate from react-router-dom
 
 const Settings = () => {
+  const navigate = useNavigate();  // To redirect the user after logout
+
   // State for connection statuses
   const [platformStatus, setPlatformStatus] = useState('Checking...');
   const [vibrationSensorStatus, setVibrationSensorStatus] = useState('Checking...');
@@ -34,6 +38,16 @@ const Settings = () => {
     }, 1000);
   };
 
+  // Function to handle logout
+  const handleLogout = async () => {
+    try {
+      await axiosInstance.post('/auth/logout');  // Call the logout endpoint in your Flask backend
+      navigate('/login');  // Redirect the user to the login page after successful logout
+    } catch (error) {
+      console.error('Failed to logout:', error);
+    }
+  };
+
   // Simulate checking on component mount
   useEffect(() => {
     checkPlatformStatus();
@@ -61,6 +75,11 @@ const Settings = () => {
             <p><strong>Temperature Sensor Status:</strong> {temperatureSensorStatus}</p>
             <p><strong>Platform IP Connection:</strong> {ipConnectionStatus}</p>
           </div>
+        </div>
+
+        {/* Logout Button */}
+        <div className="mt-8">
+          <button onClick={handleLogout} className="btn btn-steins-red">Logout</button>
         </div>
 
         {/* You can add more settings or configurations here */}

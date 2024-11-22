@@ -19,6 +19,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+     "dev": "react-scripts start",
     "eject": "react-scripts eject"
   },
   "proxy": "http://127.0.0.1:5000",
