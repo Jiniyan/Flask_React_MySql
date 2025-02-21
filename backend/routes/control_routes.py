@@ -85,3 +85,20 @@ def get_control_parameters(simulation_id):
         'intensity': control.current_intensity,
         'duration': control.current_duration
     }), 200
+
+@control_bp.route('/api/control/relay', methods=['POST'])
+def control_relay():
+    """Control the relays via API."""
+    data = request.get_json()
+    state = data.get("state")
+
+    if state not in ["CHARGE", "DISCHARGE", "NEUTRAL"]:
+        return jsonify({"error": "Invalid relay state. Use CHARGE, DISCHARGE, or NEUTRAL."}), 400
+    
+    control_data_json = json.dumps(data)
+
+    # Publish relay control command to Redis
+    redis_client.publish("relay_updates", control_data_json)
+    print(f"Published relay command: {control_data_json}")
+
+    return jsonify({"message": f"Relay state set to {control_data_json}"}), 200

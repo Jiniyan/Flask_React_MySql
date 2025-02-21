@@ -65,6 +65,7 @@ class Control(db.Model):
         return f"<Control {self.id} - Simulation {self.simulation_id} - Vibration Level {self.vibration_level}>"
 
 # Sensor Model
+# Sensor Model
 class Sensor(db.Model):
     __tablename__ = 'sensors'
     id = db.Column(db.Integer, primary_key=True)
@@ -74,7 +75,9 @@ class Sensor(db.Model):
     current_frequency = db.Column(db.Float, nullable=False)
     current_intensity = db.Column(db.Float, nullable=False)
     current_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    temperature = db.Column(db.Float, nullable=True)  # New field
+    voltage = db.Column(db.Float, nullable=True)      # New field
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
-        return f"<Sensor {self.id} - Simulation {self.simulation_id} - Current Frequency {self.current_frequency}>"
+        return f"<Sensor {self.id} - Simulation {self.simulation_id} - Frequency {self.current_frequency}>"
