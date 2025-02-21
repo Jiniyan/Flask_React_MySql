@@ -38,6 +38,8 @@ def save_vibration_data():
         latest_vibration_data.update({
             "current_frequency": data.get("frequency"),
             "current_intensity": data.get("intensity"),
+            "temperature": data.get("temperature"),
+            "voltage": data.get("voltage"),
             "timestamp": datetime.utcnow().isoformat()
         })
         return jsonify({"message": "Data saved in cache as no active simulation is present."}), 200
@@ -50,10 +52,14 @@ def save_vibration_data():
             simulation_id=active_simulation.id,
             current_frequency=data.get("frequency"),
             current_intensity=data.get("intensity"),
+            temperature=data.get("temperature"),
+            voltage=data.get("voltage"),
             data_points=[{
                 "time": datetime.utcnow().isoformat(),
                 "frequency": data.get("frequency"),
-                "intensity": data.get("intensity")
+                "intensity": data.get("intensity"),
+                "temperature": data.get("temperature"),
+                "voltage": data.get("voltage"),
             }],
             current_timestamp=datetime.utcnow()  # Set the timestamp explicitly on creation
         )
@@ -62,13 +68,17 @@ def save_vibration_data():
         # Update existing sensor data and append the new data point to data_points
         sensor.current_frequency = data.get("frequency")
         sensor.current_intensity = data.get("intensity")
+        sensor.temperature=data.get("temperature")
+        sensor.voltage=data.get("voltage"),
         sensor.current_timestamp = datetime.utcnow()  # Update timestamp explicitly
 
         # Append new data to the data_points list
         new_data_point = {
             "time": datetime.utcnow().isoformat(),
             "frequency": data.get("frequency"),
-            "intensity": data.get("intensity")
+            "intensity": data.get("intensity"),
+            "temperature": data.get("temperature"),
+            "voltage": data.get("voltage"),
         }
 
         # If data_points is None or empty, initialize as an empty list
@@ -105,7 +115,11 @@ def get_latest_vibration_data():
             sensor_data = {
                 "simulation_id": sensor.simulation_id,
                 "current_frequency": sensor.current_frequency,
-                "current_intensity": sensor.current_intensity
+                "current_intensity": sensor.current_intensity,
+                "temperature": sensor.temperature,
+                "voltage": sensor.voltage,
+                   
+
             }
             return jsonify(sensor_data), 200
 

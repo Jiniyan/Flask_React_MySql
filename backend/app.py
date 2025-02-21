@@ -11,6 +11,7 @@ from routes.simulation_results_routes import simulation_results_bp
 from routes.control_routes import control_bp
 from routes.simulation_routes import simulation_bp
 from scheduler import init_scheduler
+from arduino_bridge import start_arduino_bridge
 
 app = Flask(__name__, static_folder='build', static_url_path='/')  # Point to your React build directory
 app.config.from_object(Config)
@@ -59,6 +60,6 @@ if __name__ == '__main__':
 
     # Initialize and start the scheduler
     init_scheduler(app)
-
+    start_arduino_bridge()
     # Run the Flask app
     app.run(host='0.0.0.0', port=5000, debug=True)

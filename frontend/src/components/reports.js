@@ -1,17 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './steinsGateStyle.css';
-import axiosInstance from '../utils/axiosInstance';  // Import the custom Axios instance
-import Navbar from './Navbar';  // Import Navbar component
+import axiosInstance from '../utils/axiosInstance'; // Import the custom Axios instance
+import Navbar from './Navbar'; // Import Navbar component
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 function SimulationReports() {
-  const [reports, setReports] = useState([]);  // Initialize as an empty array
+  const [reports, setReports] = useState([]); // Initialize as an empty array
   const [selectedReport, setSelectedReport] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [nextPage, setNextPage] = useState(null);
   const [prevPage, setPrevPage] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [sortOrder, setSortOrder] = useState('asc'); // Sorting state for the timestamp column
 
   // Function to convert duration from hr/min/sec to a readable format
   const formatDuration = (durationString) => {
@@ -38,7 +41,7 @@ function SimulationReports() {
       setCurrentPage(page);
     } catch (error) {
       console.error('Failed to fetch reports:', error);
-      setReports([]);  // Set fallback to empty array in case of an error
+      setReports([]); // Set fallback to empty array in case of an error
     } finally {
       setIsLoading(false);
     }
@@ -46,8 +49,25 @@ function SimulationReports() {
 
   // Fetch reports on component mount
   useEffect(() => {
-    fetchReports();  // Call the function to fetch reports
+    fetchReports(); // Call the function to fetch reports
   }, []);
+
+  // Handle sorting
+  const sortReportsByTimestamp = () => {
+    const sortedReports = [...reports].sort((a, b) => {
+      const aTimestamp = a.data_points?.[0]?.time || '';
+      const bTimestamp = b.data_points?.[0]?.time || '';
+
+      if (sortOrder === 'asc') {
+        return aTimestamp.localeCompare(bTimestamp);
+      } else {
+        return bTimestamp.localeCompare(aTimestamp);
+      }
+    });
+
+    setReports(sortedReports);
+    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); // Toggle sort order
+  };
 
   // Modal handling
   const openModal = (report) => {
@@ -68,11 +88,11 @@ function SimulationReports() {
     xml += `<intensity>${report.intensity}</intensity>\n`;
     xml += `<duration>${report.duration}</duration>\n`;
     xml += `<vibrationLevel>${report.vibration_level}</vibrationLevel>\n<dataPoints>\n`;
-    
+
     report.data_points?.forEach((point) => {
       xml += `  <dataPoint>\n    <time>${point.time}</time>\n    <frequency>${point.frequency}</frequency>\n    <intensity>${point.intensity}</intensity>\n  </dataPoint>\n`;
     });
-    
+
     xml += `</dataPoints>\n</simulationReport>`;
     return xml;
   };
@@ -88,8 +108,40 @@ function SimulationReports() {
     document.body.removeChild(link);
   };
 
+  // Generate PDF for download
+  const generatePDF = (report) => {
+    const doc = new jsPDF();
+
+    // Add Title
+    doc.setFontSize(16);
+    doc.text(`Simulation Report ID: ${report.id}`, 10, 10);
+
+    // Add Report Details
+    doc.setFontSize(12);
+    doc.text(`Frequency: ${report.frequency} Hz`, 10, 20);
+    doc.text(`Intensity: ${report.intensity}%`, 10, 30);
+    doc.text(`Duration: ${formatDuration(report.duration)}`, 10, 40);
+    doc.text(`Vibration Level: ${report.vibration_level}`, 10, 50);
+
+    // Add Data Points Table
+    const dataPoints = report.data_points?.map((point) => [
+      point.time,
+      point.frequency,
+      point.intensity,
+    ]);
+
+    doc.autoTable({
+      startY: 60,
+      head: [['Time', 'Frequency (Hz)', 'Intensity (%)']],
+      body: dataPoints,
+    });
+
+    // Download PDF
+    doc.save(`simulation-report-${report.id}.pdf`);
+  };
+
   return (
-    <div className="bg-gray-900 min-h-screen text-white"> {/* Apply Steins;Gate black background */}
+    <div className="bg-gray-900 min-h-screen text-white">
       {/* Navbar Component */}
       <Navbar />
 
@@ -106,7 +158,11 @@ function SimulationReports() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Data Points</th>
+                <th>First Timestamp 
+                  <button onClick={sortReportsByTimestamp} className="btn btn-link text-light ms-2">
+                    Sort {sortOrder === 'asc' ? '▲' : '▼'}
+                  </button>
+                </th>
                 <th>Frequency</th>
                 <th>Intensity</th>
                 <th>Duration (hr/min/sec)</th>
@@ -118,15 +174,14 @@ function SimulationReports() {
               {reports.map((report) => (
                 <tr key={report.id}>
                   <td>{report.id}</td>
-                  <td>
-                    <button onClick={() => openModal(report)} className="btn btn-steins-blue">View Data Points</button>
-                  </td>
+                  <td>{report.data_points?.[0]?.time || 'N/A'}</td>
                   <td>{report.frequency}</td>
                   <td>{report.intensity}</td>
                   <td>{formatDuration(report.duration)}</td>
                   <td>{report.vibration_level}</td>
                   <td>
                     <button onClick={() => downloadXML(report)} className="btn btn-steins-green">Download XML</button>
+                    <button onClick={() => generatePDF(report)} className="btn btn-steins-orange ms-2">Download PDF</button>
                   </td>
                 </tr>
               ))}
