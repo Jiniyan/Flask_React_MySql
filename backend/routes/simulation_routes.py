@@ -79,6 +79,9 @@ def start_simulation():
     }
     redis_client.publish("control_updates", json.dumps(control_data))  # Publish control data to Redis channel
     print(f"Published control data to Redis: {control_data}")
+# Reset sim_time to 0
+    redis_client.set("sim_time", 0)
+    redis_client.publish("simulation_time", json.dumps({"sim_time": 0}))
 
     return jsonify({
         "message": "Simulation started successfully!",
@@ -111,7 +114,8 @@ def check_simulation_status(user_id):
         return jsonify({
             "user_simulation_id": user_active_simulation.id,
             "status": "ongoing",
-            "remaining_time": remaining_time  # Remaining time in seconds
+            "remaining_time": remaining_time,
+            "duration": user_active_simulation.duration  # 💥 ADD THIS
         }), 200
 
     return jsonify({

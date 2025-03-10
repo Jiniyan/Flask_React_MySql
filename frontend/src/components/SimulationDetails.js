@@ -18,6 +18,7 @@ const SimulationDetails = ({ simulationId, remainingTime }) => {
           <p className="text-lg text-white">
             <span className="text-cyan-300">Remaining Time:</span> {formatTime(remainingTime)}
           </p>
+
         </div>
       ) : (
         <p className="text-lg text-gray-400">
