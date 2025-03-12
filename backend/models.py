@@ -24,8 +24,11 @@ class Simulation(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     end_time = db.Column(db.DateTime, nullable=True)
     report_generated = db.Column(db.Boolean, default=False)  # New field to track report generation
-
-    # Relationships
+    start_voltage = db.Column(db.Float)
+    end_voltage = db.Column(db.Float)
+    voltage_drop = db.Column(db.Float)
+    battery_status = db.Column(db.String(20))  # "PASS" or "FAIL"
+        # Relationships
     user = db.relationship('User', backref=db.backref('simulations', lazy=True, cascade="all, delete-orphan"))
     sensors = db.relationship('Sensor', backref='simulation', lazy=True, cascade="all, delete-orphan", passive_deletes=True)
     controls = db.relationship('Control', backref='simulation', lazy=True, cascade="all, delete-orphan", passive_deletes=True)

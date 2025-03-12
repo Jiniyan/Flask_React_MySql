@@ -17,7 +17,8 @@ FLASK_URL = "http://localhost:5000/api/vibration"
 SENSOR_CHANNEL = "sensor_updates"
 MOTOR_CHANNEL = "control_updates"
 RELAY_CHANNEL = "relay_updates"
-
+VOLTAGE_CUTOFF_THRESHOLD = 12.0
+charging_enabled = True  # Adjust based on your battery chemistry
 # Command queues for motor and relay
 motor_command_queue = deque(maxlen=5)
 relay_command_queue = deque(maxlen=5)
@@ -125,6 +126,14 @@ def arduino_bridge():
                 send_data_to_flask(formatted_data)
                 print("Published Sensor Data:", formatted_data)
 
+                voltage = formatted_data["voltage"]
+                if voltage:
+                    if voltage >= VOLTAGE_CUTOFF_THRESHOLD and charging_enabled:
+                        relay_command_queue.append("NEUTRAL")
+                        charging_enabled = False
+                    elif voltage <= VOLTAGE_CUTOFF_THRESHOLD - 0.3 and not charging_enabled:
+                        relay_command_queue.append("CHARGE")
+                        charging_enabled = True
             # Queue motor commands
             motor_message = motor_pubsub.get_message(ignore_subscribe_messages=True, timeout=0.05)
             if motor_message:

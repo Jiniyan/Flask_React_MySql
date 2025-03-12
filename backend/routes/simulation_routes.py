@@ -87,19 +87,24 @@ def start_simulation():
 
 
 # Route to check simulation status for a user or globally
+# Route to check simulation status for a user or globally
 @simulation_bp.route('/api/simulation-status/<int:user_id>', methods=['GET'])
 def check_simulation_status(user_id):
     user_active_simulation = Simulation.query.filter_by(user_id=user_id, status='ongoing').first()
+    
     if user_active_simulation:
         now = datetime.utcnow()
-        remaining_time = (user_active_simulation.end_time - now).total_seconds()
-
-        # Check if simulation is complete
+        
+        # ✅ Calculate remaining time using system clock
+        elapsed_time = (now - user_active_simulation.created_at).total_seconds()
+        remaining_time = max((user_active_simulation.duration * 60) - elapsed_time, 0)  # Ensure it doesn’t go negative
+        
         if remaining_time <= 0:
+            # ✅ Mark simulation as completed when time runs out
             user_active_simulation.status = 'completed'
             db.session.commit()
 
-            # Generate the report if not already generated
+            # ✅ Generate report only if it hasn’t been generated
             if not user_active_simulation.report_generated:
                 generate_simulation_report(user_active_simulation)
 
@@ -111,7 +116,8 @@ def check_simulation_status(user_id):
         return jsonify({
             "user_simulation_id": user_active_simulation.id,
             "status": "ongoing",
-            "remaining_time": remaining_time  # Remaining time in seconds
+            "remaining_time": remaining_time,  # ✅ Now uses system clock
+            "duration": user_active_simulation.duration
         }), 200
 
     return jsonify({
