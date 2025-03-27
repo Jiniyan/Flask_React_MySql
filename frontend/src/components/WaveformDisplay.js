@@ -1,45 +1,31 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
 
-const WaveformDisplay = ({ frequency, intensity, canvasRef }) => {
-  useEffect(() => {
-    if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    let time = 0;
-
-    const drawWave = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const midY = canvas.height / 2;
-      const amplitude = 50;
-      const frequencyValue = frequency || 5;
-
-      ctx.beginPath();
-      for (let x = 0; x < canvas.width; x++) {
-        const y = midY + amplitude * Math.sin((x / canvas.width) * 2 * Math.PI * frequencyValue + time);
-        ctx.lineTo(x, y);
-      }
-
-      ctx.strokeStyle = '#00FF41';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      time += 0.05;
-      requestAnimationFrame(drawWave);
-    };
-
-    drawWave();
-  }, [canvasRef, frequency]);
-
+const WaveformDisplay = ({ data, frequency, intensity }) => {
   return (
-    <div className="bg-gray-900 p-6 rounded-lg shadow-lg mb-6 border border-steins-green">
-      <h2 className="text-xl font-semibold mb-4 text-steins-green">Waveform Display</h2>
-      <canvas ref={canvasRef} width="800" height="300" className="w-full h-48 bg-black"></canvas>
-      <div className="text-gray-300 text-center mt-4">
-        <p>Frequency: {frequency} Hz</p>
-        <p>Intensity: {intensity} m/s²</p>
+    <div className="bg-gray-800 p-4 rounded-lg mt-4 shadow-lg">
+      <h3 className="text-xl font-semibold text-white mb-2">📊 Simulation Metrics</h3>
+
+      {/* Current Frequency & Intensity */}
+      <div className="flex justify-around mb-4 text-steins-green">
+        <p>Frequency: {frequency ? `${frequency.toFixed(2)} Hz` : 'N/A'}</p>
+        <p>Intensity: {intensity ? `${intensity.toFixed(2)} ms²` : 'N/A'}</p>
       </div>
+
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+          <XAxis dataKey="time" stroke="#00FF41" />
+          <YAxis yAxisId="left" stroke="#00FF41" />
+          <YAxis yAxisId="right" orientation="right" stroke="#FFA500" />
+          <Tooltip />
+          <Legend />
+          <Line yAxisId="left" type="monotone" dataKey="frequency" stroke="#00FF41" name="Frequency (Hz)" dot={false} />
+          <Line yAxisId="right" type="monotone" dataKey="intensity" stroke="#FFA500" name="Intensity (ms²)" dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 };

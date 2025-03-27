@@ -32,7 +32,7 @@ def get_simulation_reports():
     reports = pagination.items
 
     results = [{
-        "id": report.id,
+        "id": report.simulation_id,
         "frequency": report.frequency,
         "intensity": report.intensity,
         "duration": report.duration,

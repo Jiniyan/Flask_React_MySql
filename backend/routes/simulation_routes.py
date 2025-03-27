@@ -19,6 +19,18 @@ def start_simulation():
     intensity = data.get('intensity', 0)
     duration = data.get('duration', 0)
     preset = data.get('preset', 'custom')
+# Fetch latest voltage via internal API call
+    try:
+        sensor_response = requests.get("http://localhost:5000/api/latest-vibration")
+        if sensor_response.status_code == 200:
+            sensor_data = sensor_response.json()
+            start_voltage = sensor_data.get("voltage", None)
+        else:
+            print(f"[Simulation] Failed to fetch latest voltage. Status: {sensor_response.status_code}")
+            start_voltage = None
+    except Exception as e:
+        print(f"[Simulation] Exception during voltage fetch: {e}")
+        start_voltage = None
 
     if not user_id:
         return jsonify({"error": "User ID is required"}), 400
@@ -33,7 +45,9 @@ def start_simulation():
         user_id=user_id,
         status='ongoing',
         duration=duration,
-        end_time=datetime.utcnow() + timedelta(minutes=duration)
+        end_time=datetime.utcnow() + timedelta(minutes=duration),
+        start_voltage=start_voltage  # ✅ Add this line
+
     )
     db.session.add(simulation)
     db.session.commit()
@@ -113,12 +127,20 @@ def check_simulation_status(user_id):
                 "user_simulation_id": user_active_simulation.id
             }), 200
 
+# Get current control config
+        control = Control.query.filter_by(simulation_id=user_active_simulation.id).first()
+
         return jsonify({
             "user_simulation_id": user_active_simulation.id,
             "status": "ongoing",
-            "remaining_time": remaining_time,  # ✅ Now uses system clock
-            "duration": user_active_simulation.duration
+            "remaining_time": remaining_time,
+            "duration": user_active_simulation.duration,
+            "start_time": user_active_simulation.created_at.isoformat(),  # ✅ Needed for accurate end time
+            "frequency": control.current_frequency if control else 0,      # ✅ Echo back control settings
+            "amplitude": control.current_intensity if control else 0
         }), 200
+
+
 
     return jsonify({
         "status": "No active simulations.",
