@@ -8,6 +8,7 @@ from datetime import datetime
 from collections import deque
 import threading
 import traceback
+from bridge_status import set_arduino_status
 
 # CONFIGURATION
 BAUDRATE = 115200
@@ -19,9 +20,9 @@ SENSOR_CHANNEL = "sensor_updates"
 MOTOR_CHANNEL = "control_updates"
 RELAY_CHANNEL = "relay_updates"
 VOLTAGE_CUTOFF_THRESHOLD = 12.0
-charging_enabled = True  # Adjust based on your battery chemistry
+charging_enabled = True
 
-# Command queues for motor and relay
+# Command queues
 motor_command_queue = deque(maxlen=5)
 relay_command_queue = deque(maxlen=5)
 
@@ -42,17 +43,13 @@ def find_arduino_port():
 
 
 def read_arduino_json(ser):
-    """Read and parse JSON data from Arduino."""
     line = ser.readline().decode("utf-8", errors="ignore").strip()
-
     if line.startswith("{") and line.endswith("}"):
         try:
             return json.loads(line)
         except json.JSONDecodeError:
             print("Invalid JSON received:", line)
-
     return None
-
 
 
 def send_data_to_flask(data):
@@ -102,6 +99,9 @@ def arduino_bridge():
     relay_pubsub = redis_client.pubsub()
     relay_pubsub.subscribe(RELAY_CHANNEL)
 
+    command_pubsub = redis_client.pubsub()
+    command_pubsub.subscribe("arduino_commands")
+
     ser = None
     connected_port = None
 
@@ -109,6 +109,7 @@ def arduino_bridge():
 
     while True:
         try:
+            # Connection Check
             if ser is None or not ser.is_open:
                 if ser:
                     try:
@@ -128,26 +129,32 @@ def arduino_bridge():
                         time.sleep(2)
                         ser.reset_input_buffer()
                         print("[Bridge] Arduino connected successfully!")
+                        set_arduino_status({
+                            "platform": "Connected",
+                            "vibration_sensor": "OK",
+                            "temperature_sensor": "OK"
+                        })
                     except Exception as e:
                         print(f"[Bridge] Failed to open serial: {e}")
+                        set_arduino_status({
+                            "platform": "Disconnected",
+                            "vibration_sensor": "FAIL",
+                            "temperature_sensor": "FAIL"
+                        })
                         ser = None
                         time.sleep(3)
                         continue
                 else:
                     print("[Bridge] No Arduino found. Retrying in 3 seconds...")
+                    set_arduino_status({
+                        "platform": "Disconnected",
+                        "vibration_sensor": "FAIL",
+                        "temperature_sensor": "FAIL"
+                    })
                     time.sleep(3)
                     continue
 
-            if ser and not ser.is_open:
-                print("[Bridge] Serial marked open, but isn't. Resetting...")
-                try:
-                    ser.close()
-                except:
-                    pass
-                ser = None
-                time.sleep(1)
-                continue
-
+            # Read sensor data
             data = read_arduino_json(ser)
             if data:
                 formatted_data = {
@@ -171,7 +178,7 @@ def arduino_bridge():
                         relay_command_queue.append("CHARGE")
                         charging_enabled = True
 
-            # Motor control
+            # Motor commands
             motor_msg = motor_pubsub.get_message(ignore_subscribe_messages=True, timeout=0.05)
             if motor_msg:
                 try:
@@ -183,7 +190,7 @@ def arduino_bridge():
                 except:
                     print("Invalid motor command.")
 
-            # Relay control
+            # Relay commands
             relay_msg = relay_pubsub.get_message(ignore_subscribe_messages=True, timeout=0.05)
             if relay_msg:
                 try:
@@ -194,6 +201,23 @@ def arduino_bridge():
                             relay_command_queue.append(action)
                 except:
                     print("Invalid relay command.")
+
+            # Reconnect command
+            reconnect_msg = command_pubsub.get_message(ignore_subscribe_messages=True, timeout=0.05)
+            if reconnect_msg:
+                try:
+                    command = json.loads(reconnect_msg["data"].decode())
+                    if command.get("action") == "reconnect":
+                        print("[Bridge] Reconnect command received!")
+                        if ser:
+                            try:
+                                ser.close()
+                            except:
+                                pass
+                        ser = None  # Force reconnect
+                        continue
+                except:
+                    print("Invalid reconnect command.")
 
             # Apply commands
             process_motor_commands(ser)
@@ -206,12 +230,22 @@ def arduino_bridge():
                     ser.close()
                 except:
                     pass
+            set_arduino_status({
+                "platform": "Disconnected",
+                "vibration_sensor": "FAIL",
+                "temperature_sensor": "FAIL"
+            })
             ser = None
             time.sleep(2)
 
         except Exception as e:
             print("[Bridge] General error:", e)
-            raise  # Let safe_arduino_bridge() handle the restart
+            set_arduino_status({
+                "platform": "Disconnected",
+                "vibration_sensor": "FAIL",
+                "temperature_sensor": "FAIL"
+            })
+            raise  # Let safe_arduino_bridge() handle
 
 
 def safe_arduino_bridge():

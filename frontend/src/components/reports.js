@@ -118,9 +118,13 @@ function SimulationReports() {
   const generatePDF = async (report) => {
     const doc = new jsPDF();
     const margin = 10;
-    let cursorY = 10;
-  
+    let cursorY = 30;
+    const chartHeight = 50;
+    const chartWidth = 180;
     const dataPoints = report.data_points || [];
+  
+    const navyBlue = [20, 40, 80];
+    const neonGreen = [57, 255, 20];
   
     // === 1. Calculate averages ===
     const calcAverage = (field) =>
@@ -131,91 +135,192 @@ function SimulationReports() {
     const avgVolt = calcAverage('voltage');
     const avgTemp = calcAverage('temperature');
   
-    // === 2. Report Header ===
-    doc.setFontSize(16);
-    doc.text(`Simulation Report ID: ${report.id}`, margin, cursorY);
-    cursorY += 10;
+    // === 2. Title ===
+    doc.setFontSize(24);
+    doc.setTextColor(...navyBlue);
+    doc.text('Simulation Report', doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
   
-    doc.setFontSize(12);
-    doc.text(`Duration: ${formatDuration(report.duration)}`, margin, cursorY);
-    cursorY += 10;
-    doc.text(`Vibration Level: ${report.vibration_level}`, margin, cursorY);
-    cursorY += 10;
-  
-    // === 3. Averages Summary ===
+    // === 3. Header & Summary Side by Side ===
     doc.setFontSize(14);
-    doc.text("Averages", margin, cursorY);
-    cursorY += 8;
+
+    // === Report Details (Left Column) ===
+    doc.setTextColor(...navyBlue);
+    doc.setFont(undefined, 'normal');
+
+    const headerData = [
+      { label: 'Report ID', value: `${report.id}` },
+      { label: 'Duration', value: formatDuration(report.duration) },
+      { label: 'Vibration Level', value: report.vibration_level },
+    ];
+
+    const leftLabelX = margin;
+    const leftColonX = margin + 35;
+    const leftValueX = margin + 45;
+
+    headerData.forEach((item) => {
+      doc.text(item.label, leftLabelX, cursorY);
+      doc.text(':', leftColonX, cursorY);
+      doc.text(item.value, leftValueX, cursorY);
+      cursorY += 6;
+    });
   
+    let rightX = 110;
+    let summaryY = 30;
+    doc.setTextColor(...navyBlue);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text("Averages Summary", rightX, summaryY);
+    doc.setFont(undefined, 'normal');
+    summaryY += 8;
+    doc.setTextColor(...navyBlue);
     doc.setFontSize(12);
-    doc.text(`Avg Frequency: ${avgFreq} Hz`, margin, cursorY); cursorY += 6;
-    doc.text(`Avg Intensity: ${avgInt} m/s²`, margin, cursorY); cursorY += 6;
-    doc.text(`Avg Voltage: ${avgVolt} V`, margin, cursorY); cursorY += 6;
-    doc.text(`Avg Temperature: ${avgTemp} °C`, margin, cursorY); cursorY += 10;
+
+    const summaryData = [
+      { label: 'Frequency', value: `${avgFreq} Hz` },
+      { label: 'Intensity', value: `${avgInt} m/s²` },
+      { label: 'Voltage', value: `${avgVolt} V` },
+      { label: 'Temperature', value: `${avgTemp} °C` },
+    ];
+    
+    const labelX = rightX;
+    const colonX = rightX + 35;
+    const valueX = rightX + 45;
+    
+    summaryData.forEach((item) => {
+      doc.text(item.label, labelX, summaryY);
+      doc.text(':', colonX, summaryY);
+      doc.text(item.value, valueX, summaryY);
+      summaryY += 6;
+    });
   
-    // === 4. Create Chart (canvas -> image) ===
-    const createChartImage = async (label, dataField, color = 'rgba(255,99,132,0.8)') => {
+    cursorY = Math.max(cursorY, summaryY) + 10;
+  
+    // === Time Formatter ===
+    const formatElapsedTime = (seconds) => {
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+    
+      if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`;
+      if (mins > 0) return `${mins}m ${secs}s`;
+      return `${secs}s`;
+    };
+    
+    const createChartImage = async (label, dataField, color) => {
+      const scale = 3;
       const canvas = document.createElement('canvas');
+      canvas.width = 600 * scale;
+      canvas.height = 200 * scale;
       const ctx = canvas.getContext('2d');
-  
+      ctx.scale(scale, scale);
+    
+      const dataset = dataPoints.map(p => parseFloat(p[dataField]) || 0);
+      const minVal = Math.min(...dataset);
+      const maxVal = Math.max(...dataset);
+      const padding = (maxVal - minVal) * 0.2 || 1;
+    
+      // === Actual Time Handling ===
+      let elapsedTimes = [];
+    
+      const hasTimestamps = dataPoints.every(p => p.time);
+      if (hasTimestamps) {
+        const startTime = new Date(dataPoints[0].time).getTime();
+        elapsedTimes = dataPoints.map(p =>
+          Math.floor((new Date(p.time).getTime() - startTime) / 1000)
+        );
+      } else {
+        const durationSec = report.duration || dataPoints.length;
+        const interval = durationSec / dataPoints.length;
+        elapsedTimes = dataPoints.map((_, i) => Math.floor(i * interval));
+      }
+    
+      // === Labels - Limit to 10 ===
+      const step = Math.ceil(dataPoints.length / 10);
+      const labels = elapsedTimes.map((elapsed, i) =>
+        i % step === 0 ? formatElapsedTime(elapsed) : ''
+      );
+      // === Highlighted Dots Configuration ===
+      const pointRadius = dataPoints.map((_, i) => (i % step === 0 ? 3 : 0));
+      const pointColors = dataPoints.map((_, i) => (i % step === 0 ? 'red' : 'transparent'));
+
+      
       new Chart(ctx, {
         type: 'line',
         data: {
-          labels: dataPoints.map((p, i) => `T${i}`),
+          labels: labels,
           datasets: [{
             label,
-            data: dataPoints.map(p => p[dataField]),
+            data: dataset,
             fill: false,
             borderColor: color,
-            tension: 0.1,
+            borderWidth: 3,
+            pointRadius: pointRadius,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors,
           }],
+          
+          
         },
         options: {
           responsive: false,
           animation: false,
           scales: {
-            x: { ticks: { display: false } },
+            x: {
+              ticks: {
+                color: 'navy',
+                font: { size: 45 },
+                maxRotation: 45,
+                minRotation: 45,
+                maxTicksLimit: 10,
+              },
+              grid: { color: 'rgba(20, 40, 80, 0.2)' },
+            },
+            y: {
+              min: minVal - padding,
+              max: maxVal + padding,
+              ticks: { color: 'navy', font: { size: 45 } },
+              grid: { color: 'rgba(20, 40, 80, 0.2)' },
+            },
           },
-        }
+          plugins: {
+            legend: {
+              labels: {
+                color: 'navy',
+                font: { size: 60 },
+              },
+            },
+            decimation: {
+              enabled: true,
+              algorithm: 'lttb',
+            },
+          },
+        },
       });
-  
-      await new Promise((resolve) => setTimeout(resolve, 500)); // give Chart.js time to draw
-      return canvas.toDataURL('image/png');
+    
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return canvas.toDataURL('image/png', 1.0);
     };
   
+    // === Chart Definitions ===
     const charts = [
-      { label: 'Frequency (Hz)', field: 'frequency' },
-      { label: 'Intensity (m/s²)', field: 'intensity' },
-      { label: 'Voltage (V)', field: 'voltage' },
-      { label: 'Temperature (°C)', field: 'temperature' },
+      { label: 'Frequency (Hz)', field: 'frequency', color: 'rgba(0, 255, 128, 1)' },
+      { label: 'Intensity (m/s²)', field: 'intensity', color: 'rgba(57, 255, 20, 1)' },
+      { label: 'Voltage (V)', field: 'voltage', color: 'rgba(0, 200, 255, 1)' },
+      { label: 'Temperature (°C)', field: 'temperature', color: 'rgba(255, 255, 0, 1)' },
     ];
   
     for (const chart of charts) {
-      const imgData = await createChartImage(chart.label, chart.field);
-      doc.addImage(imgData, 'PNG', margin, cursorY, 180, 50);
-      cursorY += 55;
+      const imgData = await createChartImage(chart.label, chart.field, chart.color);
+      if (cursorY + chartHeight > 250) {
+        doc.addPage();
+        cursorY = margin;
+      }
+      doc.addImage(imgData, 'PNG', margin, cursorY, chartWidth, chartHeight);
+      cursorY += chartHeight + 10;
     }
-  
-    // === 5. Table of Raw Data ===
-    const tableRows = dataPoints.map(p => [
-      formatTimestamp(p.time),
-      p.frequency,
-      p.intensity,
-      p.voltage ?? 'N/A',
-      p.temperature ?? 'N/A',
-    ]);
-  
-    doc.autoTable({
-      startY: cursorY,
-      head: [['Time', 'Frequency', 'Intensity', 'Voltage', 'Temperature']],
-      body: tableRows,
-      margin: { top: 10 },
-      styles: { fontSize: 8 },
-    });
   
     doc.save(`simulation-summary-${report.id}.pdf`);
   };
-  
 
   return (
     <div className="bg-gray-900 min-h-screen text-white">

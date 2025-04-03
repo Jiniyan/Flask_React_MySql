@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import requests  # Used to call the report generation endpoint internally
 from report_generator import generate_simulation_report  # Import the generate function from report_generator
 import json
+from bridge_status import get_arduino_status, trigger_reconnect
 redis_client = redis.Redis()
 
 simulation_bp = Blueprint('simulation', __name__)
@@ -204,3 +205,17 @@ def get_recent_simulations(user_id):
     } for simulation in recent_simulations]
 
     return jsonify(simulations)
+
+
+
+@simulation_bp.route('/api/sensor-status', methods=['GET'])
+def sensor_status():
+    """Return current Arduino and sensor status."""
+    status = get_arduino_status()
+    return jsonify(status), 200
+
+@simulation_bp.route('/api/reconnect-arduino', methods=['POST'])
+def reconnect_arduino():
+    """Force Arduino reconnection."""
+    trigger_reconnect()
+    return jsonify({"message": "Reconnect signal sent"}), 200
