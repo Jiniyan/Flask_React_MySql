@@ -1,4 +1,6 @@
 # simulation_results_routes.py
+from flask_login import login_required, current_user
+
 from flask import Blueprint, jsonify, request
 from models import SimulationResult
 from db import db
@@ -7,6 +9,7 @@ simulation_results_bp = Blueprint('simulation_results', __name__)
 
 # Endpoint to fetch simulation reports
 @simulation_results_bp.route('/api/simulation-reports/', methods=['GET'])
+@login_required
 def get_simulation_reports():
     page = request.args.get('page', 1, type=int)
     per_page = 10
@@ -14,8 +17,7 @@ def get_simulation_reports():
     order = request.args.get('order', 'asc')  # 'asc' or 'desc'
 
     # Base query
-    query = SimulationResult.query
-
+    query = SimulationResult.query.filter_by(user_id=current_user.id)
     # Sort by first data_point timestamp (if stored in JSON), otherwise by created_at
     if sort == 'timestamp':
         # Assuming you're storing the first timestamp in created_at or a custom column

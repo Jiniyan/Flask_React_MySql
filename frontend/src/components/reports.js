@@ -87,21 +87,29 @@ function SimulationReports() {
   };
 
   // Generate XML for download
-  const generateXML = (report) => {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<simulationReport>\n`;
-    xml += `<id>${report.id}</id>\n`;
-    xml += `<frequency>${report.frequency}</frequency>\n`;
-    xml += `<intensity>${report.intensity}</intensity>\n`;
-    xml += `<duration>${report.duration}</duration>\n`;
-    xml += `<vibrationLevel>${report.vibration_level}</vibrationLevel>\n<dataPoints>\n`;
+// Generate XML for download
+const generateXML = (report) => {
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<simulationReport>\n`;
+  xml += `  <id>${report.id}</id>\n`;
+  xml += `  <frequency>${report.frequency}</frequency>\n`;
+  xml += `  <intensity>${report.intensity}</intensity>\n`;
+  xml += `  <duration>${report.duration}</duration>\n`;
+  xml += `  <vibrationLevel>${report.vibration_level}</vibrationLevel>\n`;
+  xml += `  <dataPoints>\n`;
 
-    report.data_points?.forEach((point) => {
-      xml += `  <dataPoint>\n    <time>${point.time}</time>\n    <frequency>${point.frequency}</frequency>\n    <intensity>${point.intensity}</intensity>\n  </dataPoint>\n`;
-    });
+  report.data_points?.forEach((point) => {
+    xml += `    <dataPoint>\n`;
+    xml += `      <time>${point.time}</time>\n`;
+    xml += `      <frequency>${point.frequency}</frequency>\n`;
+    xml += `      <intensity>${point.intensity}</intensity>\n`;
+    xml += `      <voltage>${point.voltage ?? 'N/A'}</voltage>\n`;
+    xml += `      <temperature>${point.temperature ?? 'N/A'}</temperature>\n`;
+    xml += `    </dataPoint>\n`;
+  });
 
-    xml += `</dataPoints>\n</simulationReport>`;
-    return xml;
-  };
+  xml += `  </dataPoints>\n</simulationReport>`;
+  return xml;
+};
 
   const downloadXML = (report) => {
     const xmlData = generateXML(report);

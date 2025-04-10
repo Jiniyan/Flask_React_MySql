@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './steinsGateStyle.css';
 import '../styles/output.css';
 import axios from 'axios';
@@ -20,22 +20,31 @@ const SimulationControls = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [canStartSimulation, setCanStartSimulation] = useState(!simulationId);
-  const [inputHours, setInputHours] = useState(0);
-
   const [inputDays, setInputDays] = useState(0);
+  const [inputHours, setInputHours] = useState(0);
   const [inputMinutes, setInputMinutes] = useState(0);
   const [inputSeconds, setInputSeconds] = useState(0);
+  const [localFreq, setLocalFreq] = useState(frequency);
+  const [localAmp, setLocalAmp] = useState(amplitude);
+  useEffect(() => {
+    setCanStartSimulation(!simulationId);
+  }, [simulationId]);
+  
+  // Sync local states when new simulation props come in
+  useEffect(() => {
+    setLocalFreq(frequency);
+    setLocalAmp(amplitude);
+  }, [frequency, amplitude]);
 
   const handleDurationChange = (days, hours, mins, secs) => {
     setInputDays(days);
     setInputHours(hours);
     setInputMinutes(mins);
     setInputSeconds(secs);
-  
+
     const totalMinutes = days * 1440 + hours * 60 + mins + secs / 60;
     setDuration(Number(totalMinutes.toFixed(2)));
   };
-
 
   const createSimulation = async () => {
     if (!canStartSimulation) return;
@@ -43,8 +52,8 @@ const SimulationControls = ({
     try {
       const response = await axios.post('http://localhost:5000/api/start-simulation', {
         user_id: userId,
-        frequency,
-        intensity: amplitude,
+        frequency: localFreq,
+        intensity: localAmp,
         duration,
         preset: vibrationLevel,
       });
@@ -91,14 +100,16 @@ const SimulationControls = ({
     try {
       const response = await axios.post('http://localhost:5000/api/control/update', {
         simulation_id: simulationId,
-        frequency,
-        intensity: amplitude,
+        frequency: localFreq,
+        intensity: localAmp,
         duration,
         vibration_level: vibrationLevel,
       });
 
       if (response.status === 200) {
         console.log('Simulation updated');
+        setFrequency(localFreq);
+        setAmplitude(localAmp);
       }
     } catch (error) {
       console.error('Error updating simulation:', error);
@@ -125,113 +136,90 @@ const SimulationControls = ({
     <div className="bg-gray-900 p-6 rounded-lg shadow mb-6 border">
       <form className="space-y-6">
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-  <label htmlFor="frequency" className="block text-lg font-medium text-steins-green">
-    Target Frequency (Hz) <span className="text-sm text-green-300 ml-1">(0–60 Hz)</span>
-  </label>
-  <input
-    type="number"
-    min="0"
-    max="60"
-    step="1"
-    id="frequency"
-    value={frequency}
-    onChange={(e) => setFrequency(Number(e.target.value))}
-    className="w-32 mt-2 md:mt-0 bg-gray-700 text-white text-center rounded input-preset"
-  />
-</div>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <label htmlFor="frequency" className="block text-lg font-medium text-steins-green">
+            Target Frequency (Hz) <span className="text-sm text-green-300 ml-1">(0–60 Hz)</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="60"
+            step="1"
+            id="frequency"
+            value={localFreq}
+            onChange={(e) => setLocalFreq(Number(e.target.value))}
+            className="w-32 mt-2 md:mt-0 bg-gray-700 text-white text-center rounded input-preset"
+          />
+        </div>
 
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <label htmlFor="amplitude" className="block text-lg font-medium text-steins-green">
+            Target Amplitude (ms²) <span className="text-sm text-green-300 ml-1">(0–15 ms²)</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="15"
+            step="0.1"
+            id="amplitude"
+            value={localAmp}
+            onChange={(e) => setLocalAmp(Number(e.target.value))}
+            className="w-32 mt-2 md:mt-0 bg-gray-700 text-white text-center rounded input-preset"
+          />
+        </div>
 
-<div className="flex flex-col md:flex-row md:items-center md:justify-between">
-  <label htmlFor="amplitude" className="block text-lg font-medium text-steins-green">
-    Target Amplitude (ms²) <span className="text-sm text-green-300 ml-1">(0–15 ms²)</span>
-  </label>
-  <input
-    type="number"
-    min="0"
-    max="15"
-    step="0.1"
-    id="amplitude"
-    value={amplitude}
-    onChange={(e) => setAmplitude(Number(e.target.value))}
-    className="w-32 mt-2 md:mt-0 bg-gray-700 text-white text-center rounded input-preset"
-  />
-</div>
+        {/* Duration Input */}
+        <div>
+          <label className="text-lg font-medium text-steins-green">
+            Duration Input: {inputDays}d {inputHours}h {inputMinutes}m {inputSeconds}s
+            <span className="ml-2 text-sm text-green-300">(~{duration} min)</span>
+          </label>
 
-
-{/* Duration Input */}
-<div>
-  <label className="text-lg font-medium text-steins-green">
-    Duration Input: {inputDays}d {inputHours}h {inputMinutes}m {inputSeconds}s
-    <span className="ml-2 text-sm text-green-300">(~{duration} min)</span>
-  </label>
-
-  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
-    <div>
-      <label className="block text-xs text-green-300 mb-1">Days</label>
-      <input
-        type="number"
-        min="0"
-        value={inputDays}
-        onChange={(e) =>
-          handleDurationChange(Number(e.target.value), inputHours, inputMinutes, inputSeconds)
-        }
-        className="w-full bg-gray-700 text-white text-center rounded-lg input-preset"
-      />
-    </div>
-    <div>
-      <label className="block text-xs text-green-300 mb-1">Hours</label>
-      <input
-        type="number"
-        min="0"
-        max="23"
-        value={inputHours}
-        onChange={(e) =>
-          handleDurationChange(inputDays, Number(e.target.value), inputMinutes, inputSeconds)
-        }
-        className="w-full bg-gray-700 text-white text-center rounded-lg input-preset"
-      />
-    </div>
-    <div>
-      <label className="block text-xs text-green-300 mb-1">Minutes</label>
-      <input
-        type="number"
-        min="0"
-        max="59"
-        value={inputMinutes}
-        onChange={(e) =>
-          handleDurationChange(inputDays, inputHours, Number(e.target.value), inputSeconds)
-        }
-        className="w-full bg-gray-700 text-white text-center rounded-lg input-preset"
-      />
-    </div>
-    <div>
-      <label className="block text-xs text-green-300 mb-1">Seconds</label>
-      <input
-        type="number"
-        min="0"
-        max="59"
-        value={inputSeconds}
-        onChange={(e) =>
-          handleDurationChange(inputDays, inputHours, inputMinutes, Number(e.target.value))
-        }
-        className="w-full bg-gray-700 text-white text-center rounded-lg input-preset"
-      />
-    </div>
-  </div>
-</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+            {/* Duration input fields */}
+            {[
+              ['Days', inputDays, setInputDays],
+              ['Hours', inputHours, setInputHours],
+              ['Minutes', inputMinutes, setInputMinutes],
+              ['Seconds', inputSeconds, setInputSeconds]
+            ].map(([label, value, setter], i) => (
+              <div key={i}>
+                <label className="block text-xs text-green-300 mb-1">{label}</label>
+                <input
+                  type="number"
+                  min="0"
+                  max={label === 'Hours' ? 23 : label === 'Minutes' || label === 'Seconds' ? 59 : undefined}
+                  value={value}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    const args = [inputDays, inputHours, inputMinutes, inputSeconds];
+                    args[i] = val;
+                    handleDurationChange(...args);
+                    setter(val);
+                  }}
+                  className="w-full bg-gray-700 text-white text-center rounded-lg input-preset"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Relay Buttons */}
         <div className="flex flex-wrap justify-between mt-4 gap-2">
-          <button type="button" onClick={() => handleRelayControl('CHARGE')} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">
-            Charge Relay
-          </button>
-          <button type="button" onClick={() => handleRelayControl('DISCHARGE')} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
-            Discharge Relay
-          </button>
-          <button type="button" onClick={() => handleRelayControl('NEUTRAL')} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
-            Neutral Relay
-          </button>
+          {['CHARGE', 'DISCHARGE', 'NEUTRAL'].map(state => (
+            <button
+              key={state}
+              type="button"
+              onClick={() => handleRelayControl(state)}
+              className={`px-4 py-2 rounded text-white ${
+                state === 'CHARGE' ? 'bg-yellow-500 hover:bg-yellow-600'
+                : state === 'DISCHARGE' ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-gray-500 hover:bg-gray-600'
+              }`}
+            >
+              {state.charAt(0) + state.slice(1).toLowerCase()} Relay
+            </button>
+          ))}
         </div>
 
         {/* Simulation Action Buttons */}

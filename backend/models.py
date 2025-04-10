@@ -27,6 +27,7 @@ class Simulation(db.Model):
     start_voltage = db.Column(db.Float)
     end_voltage = db.Column(db.Float)
     voltage_drop = db.Column(db.Float)
+    discharge_started = db.Column(db.Boolean, default=False)
     battery_status = db.Column(db.String(20))  # "PASS" or "FAIL"
         # Relationships
     user = db.relationship('User', backref=db.backref('simulations', lazy=True, cascade="all, delete-orphan"))

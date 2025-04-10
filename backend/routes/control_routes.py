@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 from models import Control, Simulation
 from db import db
 from datetime import datetime, timedelta
+from flask_login import login_required, current_user
 
 # Initialize Redis client
 redis_client = redis.Redis()

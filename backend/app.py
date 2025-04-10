@@ -12,10 +12,14 @@ from routes.control_routes import control_bp
 from routes.simulation_routes import simulation_bp
 from scheduler import init_scheduler
 from arduino_bridge import start_arduino_bridge
+from flask_session import Session
 
 app = Flask(__name__, static_folder='build', static_url_path='/')  # Point to your React build directory
 app.config.from_object(Config)
-
+app.config['SESSION_TYPE'] = 'filesystem'  # For now, store sessions on disk
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True  # Optional: adds extra security
+app.config['SESSION_FILE_DIR'] = './flask_session/'  # Optional: specify session directory
 # Initialize CORS to allow requests from specific origins
 CORS(app, supports_credentials=True, origins=[
     "http://localhost:3000", "http://127.0.0.1:3000", "http://127.0.0.1:5000", "YOUR_NGROK_URL"
@@ -23,7 +27,7 @@ CORS(app, supports_credentials=True, origins=[
 
 # Initialize the database
 db.init_app(app)
-
+Session(app)
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)

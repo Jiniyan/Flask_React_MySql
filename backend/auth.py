@@ -5,7 +5,7 @@ from flask_login import login_user, login_required, logout_user, current_user
 from flask_cors import cross_origin  # Import cross_origin
 from db import db
 from models import User
-
+from flask import session, make_response
 auth = Blueprint('auth', __name__)
 
 @auth.route('/register', methods=['POST'])
@@ -26,27 +26,16 @@ def register():
         return jsonify({"error": "User already exists!"}), 409
 
 @auth.route('/login', methods=['POST'])
-@cross_origin(origins=['http://localhost:3000', 'https://*.ngrok.app'], supports_credentials=True)  # Allow both localhost and Ngrok
 def login():
     data = request.json
-    identifier = data.get('identifier')  # Username or email
+    identifier = data.get('identifier')
     password = data.get('password')
 
-    # Try to find the user by either username or email
     user = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
     
-    if user:
-        print(f"User found: {user.username}")
-        if check_password_hash(user.password, password):
-            print("Password match!")
-            login_user(user)
-            return jsonify({"key": "your_token_here"}), 200  # Replace with actual token logic
-        else:
-            print(user.password)
-            print(password)
-            print("Password does not match.")
-    else:
-        print("User not found.")
+    if user and check_password_hash(user.password, password):
+        login_user(user)
+        return jsonify({"message": "Login successful"}), 200
 
     return jsonify({"error": "Invalid username/email or password."}), 401
 
@@ -55,8 +44,20 @@ def login():
 def dashboard():
     return jsonify({"message": f"Welcome, {current_user.username}!"})
 
-@auth.route('/logout')
+@auth.route('/logout', methods=['POST'])
 @login_required
 def logout():
     logout_user()
-    return jsonify({"message": "Logged out successfully!"})
+    session.clear()
+
+    # Create response and remove session cookie
+    response = make_response(jsonify({"message": "Logged out successfully"}))
+    response.set_cookie('session', '', expires=0, path='/', samesite='Lax')
+
+    return response
+
+@auth.route('/status')
+def status():
+    if current_user.is_authenticated:
+        return jsonify({"logged_in": True, "username": current_user.username})
+    return jsonify({"logged_in": False})

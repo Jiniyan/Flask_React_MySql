@@ -1,7 +1,9 @@
 from models import Sensor, Control, SimulationResult, db
 from datetime import datetime
 import statistics
-
+import redis
+import json
+redis_client = redis.Redis()
 def generate_simulation_report(simulation):
     """Generate a simulation report based on actual sensor data."""
     if getattr(simulation, 'report_generated', False):
@@ -59,3 +61,9 @@ def generate_simulation_report(simulation):
     db.session.commit()
 
     print(f"[Report] Report generated for simulation {simulation.id} - {battery_status}")
+    neutral_command = {
+        "simulation_id": simulation.id,
+        "state": "NEUTRAL"
+    }
+    redis_client.publish("relay_updates", json.dumps(neutral_command))
+    print(f"[Report] Relay set to NEUTRAL for Simulation ID {simulation.id}")

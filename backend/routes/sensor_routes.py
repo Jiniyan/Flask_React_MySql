@@ -103,6 +103,7 @@ def save_vibration_data():
 
 # Endpoint to fetch the most recent vibration data
 @sensor_bp.route('/api/latest-vibration', methods=['GET'])
+
 def get_latest_vibration_data():
     # Check for an active simulation
     active_simulation = Simulation.query.filter_by(status='ongoing').first()

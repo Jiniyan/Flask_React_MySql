@@ -47,6 +47,39 @@
   border: 1px solid #333;
   height: 100%;
 }
+.btn-steins-green {
+  background-color: #00FF41;
+  color: black;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 0 10px #00FF41;
+}
+
+.btn-steins-green:hover {
+  background-color: #00cc33;
+  box-shadow: 0 0 15px #00FF41, 0 0 30px #00FF41;
+}
+
+.btn-steins-red {
+  background-color: #ff0033;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 0 10px #ff0033;
+}
+
+.btn-steins-red:hover {
+  background-color: #cc0022;
+  box-shadow: 0 0 15px #ff0033, 0 0 30px #ff0033;
+}
 
 @media (min-width: 768px) {
   .dashboard-2col {
