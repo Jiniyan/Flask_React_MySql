@@ -12,6 +12,7 @@ import threading
 import traceback
 from bridge_status import set_arduino_status
 from scipy.signal.windows import hann
+from scipy.signal import find_peaks
 
 # CONFIGURATION
 BAUDRATE = 115200
@@ -22,16 +23,16 @@ FLASK_URL = "http://localhost:5000/api/vibration"
 SENSOR_CHANNEL = "sensor_updates"
 MOTOR_CHANNEL = "control_updates"
 RELAY_CHANNEL = "relay_updates"
-VOLTAGE_CUTOFF_THRESHOLD = 14.4
-charging_enabled = False
+VOLTAGE_CUTOFF_THRESHOLD = 14.7
+charging_enabled = True
 current_frequency = 0.0
 
 # FFT Config
-NUM_SAMPLES = 805
+NUM_SAMPLES = 256
 SAMPLING_RATE_HZ = 201.25
-FREQ_UPDATE_STEP = 10
+FREQ_UPDATE_INTERVAL = 0.25  # seconds
 accel_buffer = []
-sample_counter = 0
+last_fft_time = time.time()
 window = hann(NUM_SAMPLES)
 freq_history = deque(maxlen=5)
 
@@ -53,7 +54,35 @@ def find_arduino_port():
         print("No Arduino found.")
         return None
     return ports[0]
+def calibrate_frequency(raw_freq):
+    raw_freq = 0.0002*pow(raw_freq,2)+0.4353*raw_freq-0.0995
+    return raw_freq
 
+
+# def calibrate_frequency(raw_freq):
+    calibration_points = {
+        0:0,
+        12:5,
+        23: 10,
+        34: 15,
+        45: 20,
+        56: 25,
+    
+
+    }
+    raw_freqs = sorted(calibration_points.keys())
+    for i in range(len(raw_freqs) - 1):
+        f1, f2 = raw_freqs[i], raw_freqs[i + 1]
+        if f1 <= raw_freq <= f2:
+            real_f1 = calibration_points[f1]
+            real_f2 = calibration_points[f2]
+            ratio = (raw_freq - f1) / (f2 - f1)
+            return real_f1 + ratio * (real_f2 - real_f1)
+    if raw_freq <= raw_freqs[0]:
+        return calibration_points[raw_freqs[0]]
+    if raw_freq >= raw_freqs[-1]:
+        return calibration_points[raw_freqs[-1]]
+    return raw_freq
 
 def read_arduino_csv(ser):
     try:
@@ -110,44 +139,82 @@ def map_frequency_to_pwm(frequency):
         return freq_pwm_map[freqs[-1]]
     return 0
 
+def estimate_frequency_psd(buffer, fs, last_freq=None):
+    if len(buffer) < 32:
+        return 0.0
 
-def estimate_frequency_psd(buffer, fs):
     accel_array = np.array(buffer)
-    if np.ptp(accel_array) < 0.001:
+
+    if np.ptp(accel_array) < 0.05:
         return 0.0
+
     accel_array -= np.mean(accel_array)
-    windowed = accel_array * window
+
+    if len(accel_array) < NUM_SAMPLES:
+        accel_array = np.pad(accel_array, (0, NUM_SAMPLES - len(accel_array)), mode='constant')
+
+    hann_window = hann(NUM_SAMPLES)
+    bias_window = np.exp(np.linspace(0, -4, NUM_SAMPLES))  # prioritize newer samples
+    hybrid_window = hann_window * bias_window
+    windowed = accel_array * hybrid_window
+
     freqs, psd = welch(windowed, fs=fs, nperseg=NUM_SAMPLES)
-    peak_power = np.max(psd)
-    if peak_power < 1e-8:
+    valid = (freqs >= 2) & (freqs <= 60)
+    freqs, psd = freqs[valid], psd[valid]
+
+    if len(psd) == 0:
         return 0.0
-    return freqs[np.argmax(psd)]
 
+    # Suppress harmonics by applying harmonic penalty
+    # Apply harmonic suppression
+    harmonic_penalty = 1 - (freqs / freqs[-1])**2
+    psd *= harmonic_penalty
 
+    peaks, props = find_peaks(psd, height=0.00005)
+
+    if len(peaks) == 0:
+        return 0.0
+
+    peak_heights = props["peak_heights"]
+    max_idx = np.argmax(peak_heights)
+    fundamental_freq = freqs[peaks[max_idx]]
+
+    # If recent freq known, prefer closest
+    if last_freq is not None:
+        closest_peak = min(peaks, key=lambda i: abs(freqs[i] - last_freq))
+        return freqs[closest_peak]
+
+    return fundamental_freq
 def process_motor_commands(ser):
     global last_motor_send_time
     current_time = time.time()
     if motor_command_queue and (current_time - last_motor_send_time) > MOTOR_SEND_INTERVAL:
         pwm_value = motor_command_queue.popleft()
-        ser.write(f"MOTOR:{pwm_value}\n".encode())
-        ser.flush()
-        last_motor_send_time = current_time
-        print(f"Sent Motor Command: PWM {pwm_value}")
-
-
+        try:
+            ser.reset_input_buffer()  # flush input to avoid clashing reads
+            ser.write(f"MOTOR:{pwm_value}\n".encode())
+            ser.flush()
+            time.sleep(0.01)  # let Arduino handle it
+            last_motor_send_time = current_time
+            print(f"Sent Motor Command: PWM {pwm_value}")
+        except Exception as e:
+            print(f"Error sending motor command: {e}")
 def process_relay_commands(ser):
     global last_relay_send_time
     current_time = time.time()
     if relay_command_queue and (current_time - last_relay_send_time) > RELAY_SEND_INTERVAL:
         relay_action = relay_command_queue.popleft()
-        ser.write(f"RELAY:{relay_action}\n".encode())
-        ser.flush()
-        last_relay_send_time = current_time
-        print(f"Sent Relay Command: {relay_action}")
-
-
+        try:
+            ser.reset_input_buffer()  # flush before write
+            ser.write(f"RELAY:{relay_action}\n".encode())
+            ser.flush()
+            time.sleep(0.01)
+            last_relay_send_time = current_time
+            print(f"Sent Relay Command: {relay_action}")
+        except Exception as e:
+            print(f"Error sending relay command: {e}")
 def arduino_bridge():
-    global charging_enabled, sample_counter, current_frequency
+    global charging_enabled, current_frequency, last_fft_time
 
     redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
     motor_pubsub = redis_client.pubsub()
@@ -218,26 +285,29 @@ def arduino_bridge():
                 accel_buffer.append(z_val)
                 if len(accel_buffer) > NUM_SAMPLES:
                     accel_buffer.pop(0)
-                    sample_counter += 1
 
-                has_window = len(accel_buffer) == NUM_SAMPLES
-
-                if has_window and sample_counter >= FREQ_UPDATE_STEP:
+                current_time = time.time()
+                buffer_fill_ratio = len(accel_buffer) / NUM_SAMPLES
+                if buffer_fill_ratio >= 0.5 and (current_time - last_fft_time) >= FREQ_UPDATE_INTERVAL:
                     freq_estimate = estimate_frequency_psd(accel_buffer, SAMPLING_RATE_HZ)
-                    alpha = 0.2
+                    alpha = 0.05  # stronger smoothing
                     if freq_estimate > 0:
-                        current_frequency = alpha * freq_estimate + (1 - alpha) * current_frequency
+                        calibrated = calibrate_frequency(freq_estimate)
+                        current_frequency = alpha * calibrated + (1 - alpha) * current_frequency
                     else:
                         current_frequency *= 0.98
-                    sample_counter = 0
+                    last_fft_time = current_time
+
 
                 formatted_data = {
                     "frequency": current_frequency,
+                    "raw_frequency": current_frequency,
                     "intensity": abs(z_val),
                     "temperature": data["temperature"],
                     "voltage": data["voltage"],
                     "relay_status": data["relay_state"],
-                    "has_window": has_window,
+                    "has_window": buffer_fill_ratio >= 1.0,
+
                     "buffer_size": len(accel_buffer),
                     "timestamp": datetime.utcnow().isoformat()
                 }
@@ -251,9 +321,7 @@ def arduino_bridge():
                     if voltage >= VOLTAGE_CUTOFF_THRESHOLD and charging_enabled:
                         relay_command_queue.append("NEUTRAL")
                         charging_enabled = False
-                    elif voltage <= VOLTAGE_CUTOFF_THRESHOLD - 0.3 and not charging_enabled:
-                        relay_command_queue.append("CHARGE")
-                        charging_enabled = True
+
 
             motor_msg = motor_pubsub.get_message(ignore_subscribe_messages=True, timeout=0.01)
             if motor_msg:

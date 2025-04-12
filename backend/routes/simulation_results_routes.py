@@ -40,7 +40,8 @@ def get_simulation_reports():
         "duration": report.duration,
         "vibration_level": report.vibration_level,
         "created_at": report.created_at,
-        "data_points": report.data_points
+        "data_points": report.data_points,
+        "battery_status": report.simulation.battery_status if report.simulation else None
     } for report in reports]
 
     return jsonify({

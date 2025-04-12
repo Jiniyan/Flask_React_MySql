@@ -95,6 +95,9 @@ const generateXML = (report) => {
   xml += `  <intensity>${report.intensity}</intensity>\n`;
   xml += `  <duration>${report.duration}</duration>\n`;
   xml += `  <vibrationLevel>${report.vibration_level}</vibrationLevel>\n`;
+  // Add to XML generation
+  xml += `  <batteryStatus>${report.battery_status ?? 'N/A'}</batteryStatus>\n`;
+
   xml += `  <dataPoints>\n`;
 
   report.data_points?.forEach((point) => {
@@ -155,11 +158,14 @@ const generateXML = (report) => {
     doc.setTextColor(...navyBlue);
     doc.setFont(undefined, 'normal');
 
-    const headerData = [
-      { label: 'Report ID', value: `${report.id}` },
-      { label: 'Duration', value: formatDuration(report.duration) },
-      { label: 'Vibration Level', value: report.vibration_level },
-    ];
+// Add to PDF Report Header Data
+  const headerData = [
+    { label: 'Report ID', value: `${report.id}` },
+    { label: 'Duration', value: formatDuration(report.duration) },
+    { label: 'Vibration Level', value: report.vibration_level },
+    { label: 'Battery Status', value: report.battery_status || 'N/A' }
+  ];
+
 
     const leftLabelX = margin;
     const leftColonX = margin + 35;
@@ -358,6 +364,7 @@ const generateXML = (report) => {
       <th>Duration (hr/min/sec)</th>
       <th>Vibration Level</th>
       <th>Data Points</th>
+      <th>Battery Status</th>
       <th>Actions</th>
     </tr>
   </thead>
@@ -370,6 +377,9 @@ const generateXML = (report) => {
         <td>{report.intensity}</td>
         <td>{formatDuration(report.duration)}</td>
         <td>{report.vibration_level}</td>
+        <td>{report.battery_status || 'N/A'}</td>
+
+        
         <td>
           <button onClick={() => openModal(report)} className="btn btn-info btn-sm">View</button>
         </td>
