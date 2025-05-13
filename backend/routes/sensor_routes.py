@@ -18,7 +18,6 @@ from models import Sensor, Simulation
 from db import db
 from datetime import datetime
 
-sensor_bp = Blueprint('sensor', __name__)
 
 # Endpoint to receive vibration data from the sensor and save it
 @sensor_bp.route('/api/vibration', methods=['POST'])

@@ -37,7 +37,9 @@ const Login = () => {
         headers: {
           'X-CSRFToken': csrftoken,
         },
-      });
+        withCredentials: true,  // <<< ADD THIS AGAIN HERE
+        }
+      );
   
       localStorage.setItem('token', response.data.key);  
       setAuthenticated(true);

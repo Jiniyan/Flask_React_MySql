@@ -4,7 +4,8 @@ from flask_login import login_required, current_user
 from flask import Blueprint, jsonify, request
 from models import SimulationResult
 from db import db
-
+from pytz import timezone
+ph_tz = timezone("Asia/Manila")
 simulation_results_bp = Blueprint('simulation_results', __name__)
 
 # Endpoint to fetch simulation reports

@@ -17,9 +17,17 @@ const SimulationDetails = ({
 
   const calculateEndTime = () => {
     if (!startTime) return 'Calculating...';
+  
     const end = new Date(startTime.getTime() + duration * 60000);
-    return end.toLocaleTimeString(); // HH:MM:SS AM/PM
+    return end.toLocaleString('en-PH', {
+      timeZone: 'Asia/Manila',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: true,
+    });
   };
+  
 
   return (
     <div className="h-full w-full bg-gray-800 p-4 rounded-lg shadow border border-gray-700">

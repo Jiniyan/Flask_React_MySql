@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import './steinsGateStyle.css';
 import '../styles/output.css';
 import axios from 'axios';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
 
+const MySwal = withReactContent(Swal);
 const SimulationControls = ({
   userId,
   simulationId,
@@ -18,6 +21,7 @@ const SimulationControls = ({
   vibrationLevel,
   setVibrationLevel,
 }) => {
+  const [isAmplitudeDisabled, setIsAmplitudeDisabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [canStartSimulation, setCanStartSimulation] = useState(!simulationId);
   const [inputDays, setInputDays] = useState(0);
@@ -26,6 +30,10 @@ const SimulationControls = ({
   const [inputSeconds, setInputSeconds] = useState(0);
   const [localFreq, setLocalFreq] = useState(frequency);
   const [localAmp, setLocalAmp] = useState(amplitude);
+  const [displayAmp, setDisplayAmp] = useState(amplitude.toFixed(2));
+  const [prevAmp, setPrevAmp] = useState(amplitude);
+
+
   useEffect(() => {
     setCanStartSimulation(!simulationId);
   }, [simulationId]);
@@ -41,13 +49,94 @@ const SimulationControls = ({
     setInputHours(hours);
     setInputMinutes(mins);
     setInputSeconds(secs);
-
     const totalMinutes = days * 1440 + hours * 60 + mins + secs / 60;
     setDuration(Number(totalMinutes.toFixed(2)));
   };
+  const clampFrequency = (freq) => Math.min(Math.max(freq, 0), 54);
+  const clampAmplitude = (amp) => Math.min(Math.max(amp, 0), 20);
+  const isInValidBand = (val) => 
+    (val >= 2 && val <= 3) || (val >= 11 && val <= 20.8); // allow upper edge
+  
+  const handleFrequencyBlur = () => {
+    const clamped = clampFrequency(localFreq);
+    setLocalFreq(clamped);
+    setFrequency(clamped);
+  
+    if (clamped === 0) {
+      // Explicit STOP
+      setAmplitude(0);
+      setLocalAmp(0);
+      setDisplayAmp("0.00");
+      setPrevAmp(0);
+    } else if (clamped >= 10 && clamped <= 30) {
+      const predicted = computeAcceleration(clamped);
+      const rounded = Number(predicted.toFixed(2));
+      setAmplitude(rounded);
+      setLocalAmp(rounded);
+      setDisplayAmp(rounded.toFixed(2));
+      setPrevAmp(rounded);
+    } else {
+      setAmplitude(0);
+      setLocalAmp(0);
+      setDisplayAmp("Unknown");
+    }
+    
+  };
+  
+  
+
+  const handleAmplitudeBlur = () => {
+    const clamped = clampAmplitude(localAmp);
+    setLocalAmp(clamped);
+    setDisplayAmp(clamped.toFixed(2));
+  
+    if (isInValidBand(clamped)) {
+      let matchedFreq = null;
+      for (let f = 10; f <= 32; f += 0.1) {
+        const acc = computeAcceleration(f);
+        if (Math.abs(acc - clamped) <= 1.5) {
+          matchedFreq = Number(f.toFixed(2));
+          break;
+        }
+      }
+      if (matchedFreq !== null) {
+        setLocalFreq(matchedFreq);
+        setFrequency(matchedFreq);
+      } else {
+        MySwal.fire({
+          title: 'Frequency Mapping Failed',
+          text: 'No matching frequency found for this amplitude.',
+          icon: 'error',
+          background: '#1f2937',
+          color: '#fff',
+        });
+        setLocalAmp(prevAmp);
+        setDisplayAmp(prevAmp.toFixed(2));
+      }
+    }
+    
+  };
+  
+  
 
   const createSimulation = async () => {
     if (!canStartSimulation) return;
+  
+    const result = await MySwal.fire({
+      title: 'Start Simulation?',
+      text: 'Are you sure you want to begin this simulation?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, start it!',
+      cancelButtonText: 'Cancel',
+      background: '#1f2937',
+      color: '#fff',
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#6b7280',
+    });
+  
+    if (!result.isConfirmed) return;
+  
     setIsLoading(true);
     try {
       const response = await axios.post('http://localhost:5000/api/start-simulation', {
@@ -57,41 +146,85 @@ const SimulationControls = ({
         duration,
         preset: vibrationLevel,
       });
-
+  
       if (response.status === 201) {
         setSimulationId(response.data.simulation_id);
         setRemainingTime(duration * 60);
         setCanStartSimulation(false);
+        MySwal.fire('Started!', 'Simulation has begun.', 'success');
       }
     } catch (error) {
       console.error('Error starting simulation:', error);
+      MySwal.fire('Error', 'Failed to start simulation.', 'error');
     } finally {
       setIsLoading(false);
     }
   };
+  
 
   const stopSimulation = async () => {
     if (!simulationId) return;
-
+  
+    const result = await MySwal.fire({
+      title: 'Stop Simulation?',
+      text: 'This will end the current simulation, generate a report, and show battery evaluation.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, stop it!',
+      cancelButtonText: 'Cancel',
+      background: '#1f2937',
+      color: '#fff',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+    });
+  
+    if (!result.isConfirmed) return;
+  
     setIsLoading(true);
     try {
-      const stopResponse = await axios.post('http://localhost:5000/api/stop-simulation', { simulation_id: simulationId });
-
+      // 1. Stop the simulation
+      const stopResponse = await axios.post('http://localhost:5000/api/stop-simulation', {
+        simulation_id: simulationId
+      });
       if (stopResponse.status === 200) {
-        const reportResponse = await axios.post(`http://localhost:5000/api/generate-report/${simulationId}`);
-        if (reportResponse.status === 201) {
-          console.log('Simulation report generated');
+        // 2. Generate the report via POST
+        const generateResponse = await axios.post(`http://localhost:5000/api/generate-report/${simulationId}`);
+        if (generateResponse.status === 201) {
+          // 3. Retrieve the simulation report via GET
+          const reportResponse = await axios.get(`http://localhost:5000/api/simulation-report/${simulationId}`);
+          if (reportResponse.status === 200) {
+            const report = reportResponse.data;
+            MySwal.fire({
+              title: 'Simulation Report',
+              html: `
+                <p><strong>Initial Voltage:</strong> ${report.start_voltage} V</p>
+                <p><strong>Terminal Voltage:</strong> ${report.end_voltage} V</p>
+                <p><strong>Voltage Threshold:</strong> 7.2V</p>
+                <p>Success Criteria, Terminal Voltage > Voltage Threshold</p>
+                <p><strong>Battery Status:</strong> ${report.battery_status}</p>
+                <p><strong>Duration:</strong> ${report.duration}</p>
+              `,
+              icon: 'info',
+              background: '#1f2937',
+              color: '#fff'
+            });
+          }
         }
+        // Reset simulation state in the front-end
         setSimulationId(null);
         setRemainingTime(0);
         setCanStartSimulation(true);
       }
     } catch (error) {
       console.error('Error stopping simulation:', error);
+      MySwal.fire('Error', 'Failed to stop simulation or generate report.', 'error');
     } finally {
       setIsLoading(false);
     }
   };
+  
+  
+  
 
   const updateSimulation = async () => {
     if (!simulationId) return;
@@ -135,35 +268,37 @@ const SimulationControls = ({
   return (
     <div className="bg-gray-900 p-6 rounded-lg shadow mb-6 border">
       <form className="space-y-6">
-
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <label htmlFor="frequency" className="block text-lg font-medium text-steins-green">
             Target Frequency (Hz) <span className="text-sm text-green-300 ml-1">(0–60 Hz)</span>
           </label>
           <input
             type="number"
+            step="0.1"
             min="0"
             max="60"
-            step="1"
             id="frequency"
             value={localFreq}
             onChange={(e) => setLocalFreq(Number(e.target.value))}
+            onBlur={handleFrequencyBlur}
             className="w-32 mt-2 md:mt-0 bg-gray-700 text-white text-center rounded input-preset"
           />
         </div>
-
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <label htmlFor="amplitude" className="block text-lg font-medium text-steins-green">
-            Target Amplitude (ms²) <span className="text-sm text-green-300 ml-1">(0–15 ms²)</span>
+            Target Amplitude (ms²) <span className="text-sm text-green-300 ml-1">(2–3 or 11–20 ms²)</span>
           </label>
           <input
-            type="number"
-            min="0"
-            max="15"
-            step="0.1"
+            type="text"
             id="amplitude"
-            value={localAmp}
-            onChange={(e) => setLocalAmp(Number(e.target.value))}
+            value={displayAmp}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              setPrevAmp(localAmp);
+              setLocalAmp(isNaN(val) ? 0 : val);
+              setDisplayAmp(e.target.value);
+            }}
+            onBlur={handleAmplitudeBlur}
             className="w-32 mt-2 md:mt-0 bg-gray-700 text-white text-center rounded input-preset"
           />
         </div>
@@ -176,7 +311,6 @@ const SimulationControls = ({
           </label>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
-            {/* Duration input fields */}
             {[
               ['Days', inputDays, setInputDays],
               ['Hours', inputHours, setInputHours],
@@ -188,7 +322,7 @@ const SimulationControls = ({
                 <input
                   type="number"
                   min="0"
-                  max={label === 'Hours' ? 23 : label === 'Minutes' || label === 'Seconds' ? 59 : undefined}
+                  max={label === 'Hours' ? 23 : (label === 'Minutes' || label === 'Seconds' ? 59 : undefined)}
                   value={value}
                   onChange={(e) => {
                     const val = Number(e.target.value);
@@ -258,5 +392,38 @@ const SimulationControls = ({
     </div>
   );
 };
+// Regression model for acceleration given frequency
+function computeAcceleration(freq) {
+  const map = [
+    { freq: 10, acc: 2.234 },
+    { freq: 12, acc: 1.7 },
+    { freq: 14, acc: 1.9 },
+    { freq: 16.5, acc: 2.4 },
+    { freq: 18.5, acc: 11 },
+    { freq: 20.5, acc: 14.6 },
+    { freq: 23, acc: 16.2 },
+    { freq: 25, acc: 15.3 },
+    { freq: 27, acc: 13.7 },
+    { freq: 29.5, acc: 15 },
+    { freq: 31.5, acc: 20.8 }
+  ];
+
+  if (freq < map[0].freq) return 0;
+  if (freq > map[map.length - 1].freq) return map[map.length - 1].acc;
+
+  for (let i = 0; i < map.length - 1; i++) {
+    const p1 = map[i];
+    const p2 = map[i + 1];
+    if (freq >= p1.freq && freq <= p2.freq) {
+      const ratio = (freq - p1.freq) / (p2.freq - p1.freq);
+      return p1.acc + ratio * (p2.acc - p1.acc);
+    }
+  }
+
+  return 0; // fallback
+}
+
+
+
 
 export default SimulationControls;

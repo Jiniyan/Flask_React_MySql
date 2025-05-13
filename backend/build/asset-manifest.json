@@ -1,22 +1,22 @@
 {
   "files": {
-    "main.css": "/static/css/main.de4cb3be.css",
-    "main.js": "/static/js/main.059b3d24.js",
+    "main.css": "/static/css/main.65fc776e.css",
+    "main.js": "/static/js/main.a37a8d4b.js",
     "static/js/239.dfdb0d71.chunk.js": "/static/js/239.dfdb0d71.chunk.js",
     "static/js/213.7f77f7fe.chunk.js": "/static/js/213.7f77f7fe.chunk.js",
     "static/js/732.9a305367.chunk.js": "/static/js/732.9a305367.chunk.js",
     "static/js/453.d855a71b.chunk.js": "/static/js/453.d855a71b.chunk.js",
     "static/media/steins_gate_bg.jpg": "/static/media/steins_gate_bg.e666d6fdf83edeb61a13.jpg",
     "index.html": "/index.html",
-    "main.de4cb3be.css.map": "/static/css/main.de4cb3be.css.map",
-    "main.059b3d24.js.map": "/static/js/main.059b3d24.js.map",
+    "main.65fc776e.css.map": "/static/css/main.65fc776e.css.map",
+    "main.a37a8d4b.js.map": "/static/js/main.a37a8d4b.js.map",
     "239.dfdb0d71.chunk.js.map": "/static/js/239.dfdb0d71.chunk.js.map",
     "213.7f77f7fe.chunk.js.map": "/static/js/213.7f77f7fe.chunk.js.map",
     "732.9a305367.chunk.js.map": "/static/js/732.9a305367.chunk.js.map",
     "453.d855a71b.chunk.js.map": "/static/js/453.d855a71b.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.de4cb3be.css",
-    "static/js/main.059b3d24.js"
+    "static/css/main.65fc776e.css",
+    "static/js/main.a37a8d4b.js"
   ]
 }

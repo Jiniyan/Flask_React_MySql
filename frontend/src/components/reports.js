@@ -363,8 +363,8 @@ const generateXML = (report) => {
       <th>Intensity</th>
       <th>Duration (hr/min/sec)</th>
       <th>Vibration Level</th>
-      <th>Data Points</th>
       <th>Battery Status</th>
+      <th>Data Points</th>
       <th>Actions</th>
     </tr>
   </thead>

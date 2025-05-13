@@ -45,7 +45,7 @@ def save_vibration_data():
     data = request.json  # Get the data as a JSON object
 
     # Print the received data for debugging (will show in the server terminal)
-    print("Received data:", data)
+
 
     # Store the received data in the global variable
     latest_vibration_data = data

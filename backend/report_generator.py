@@ -37,7 +37,7 @@ def generate_simulation_report(simulation):
     initial_voltage = data_points[0].get("voltage")
     final_voltage = data_points[-1].get("voltage")
     voltage_drop = round(initial_voltage - final_voltage, 2) if initial_voltage and final_voltage else None
-    battery_status = "PASS" if voltage_drop is not None and voltage_drop <= 0.5 else "FAIL"
+    battery_status = "PASS" if final_voltage is not None and final_voltage > 7.2 else "FAIL"
 
     # Save result
     simulation_result = SimulationResult(

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { getCookie } from './csrfHelper';  // Helper to get CSRF token from cookies
 
 const axiosInstance = axios.create({ // Your flask
-  baseURL: 'http://localhost:5000',
+  baseURL: 'http://127.0.0.1:5000',
   withCredentials: true,  // Send cookies with each request
 });
 

@@ -1,6 +1,12 @@
 from db import db
 from flask_login import UserMixin
 from datetime import datetime, timedelta
+from pytz import timezone
+
+ph_tz = timezone("Asia/Manila")
+
+def now_ph():
+    return datetime.now(ph_tz)
 
 # User model
 class User(UserMixin, db.Model):
@@ -13,23 +19,22 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f"<User {self.username}>"
 
-# Simulation Model
-# Simulation Model
+# Simulation model
 class Simulation(db.Model):
     __tablename__ = 'simulations'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='ongoing')  # 'ongoing', 'interrupted', 'complete'
-    duration = db.Column(db.Float, nullable=True)  # Duration in minutes
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), nullable=False, default='ongoing')
+    duration = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=now_ph)
     end_time = db.Column(db.DateTime, nullable=True)
-    report_generated = db.Column(db.Boolean, default=False)  # New field to track report generation
+    report_generated = db.Column(db.Boolean, default=False)
     start_voltage = db.Column(db.Float)
     end_voltage = db.Column(db.Float)
     voltage_drop = db.Column(db.Float)
     discharge_started = db.Column(db.Boolean, default=False)
-    battery_status = db.Column(db.String(20))  # "PASS" or "FAIL"
-        # Relationships
+    battery_status = db.Column(db.String(20))
+
     user = db.relationship('User', backref=db.backref('simulations', lazy=True, cascade="all, delete-orphan"))
     sensors = db.relationship('Sensor', backref='simulation', lazy=True, cascade="all, delete-orphan", passive_deletes=True)
     controls = db.relationship('Control', backref='simulation', lazy=True, cascade="all, delete-orphan", passive_deletes=True)
@@ -38,7 +43,7 @@ class Simulation(db.Model):
     def __repr__(self):
         return f"<Simulation {self.id} - User {self.user_id} - Status {self.status}>"
 
-# SimulationResult Model
+# SimulationResult model
 class SimulationResult(db.Model):
     __tablename__ = 'simulation_results'
     id = db.Column(db.Integer, primary_key=True)
@@ -47,13 +52,14 @@ class SimulationResult(db.Model):
     data_points = db.Column(db.JSON)
     frequency = db.Column(db.Float, nullable=False)
     intensity = db.Column(db.Float, nullable=False)
-    duration = db.Column(db.String(50), nullable=False)  # Updated to String to hold formatted duration
-    vibration_level = db.Column(db.String(50), nullable=False)  # Increased to 50 characters to support longer values
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    duration = db.Column(db.String(50), nullable=False)
+    vibration_level = db.Column(db.String(50), nullable=False)
+    created_at = db.Column(db.DateTime, default=now_ph)
 
     def __repr__(self):
         return f"<SimulationResult {self.id} - Simulation {self.simulation_id} - Vibration Level {self.vibration_level}>"
-# Control Model
+
+# Control model
 class Control(db.Model):
     __tablename__ = 'controls'
     id = db.Column(db.Integer, primary_key=True)
@@ -63,13 +69,12 @@ class Control(db.Model):
     current_intensity = db.Column(db.Float, nullable=False, default=0.0)
     current_duration = db.Column(db.Float, nullable=False, default=0.0)
     vibration_level = db.Column(db.String(20), nullable=False, default="custom")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=now_ph)
 
     def __repr__(self):
         return f"<Control {self.id} - Simulation {self.simulation_id} - Vibration Level {self.vibration_level}>"
 
-# Sensor Model
-# Sensor Model
+# Sensor model
 class Sensor(db.Model):
     __tablename__ = 'sensors'
     id = db.Column(db.Integer, primary_key=True)
@@ -78,10 +83,10 @@ class Sensor(db.Model):
     data_points = db.Column(db.JSON, nullable=True)
     current_frequency = db.Column(db.Float, nullable=False)
     current_intensity = db.Column(db.Float, nullable=False)
-    current_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    temperature = db.Column(db.Float, nullable=True)  # New field
-    voltage = db.Column(db.Float, nullable=True)      # New field
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    current_timestamp = db.Column(db.DateTime, default=now_ph)
+    temperature = db.Column(db.Float, nullable=True)
+    voltage = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=now_ph)
 
     def __repr__(self):
         return f"<Sensor {self.id} - Simulation {self.simulation_id} - Frequency {self.current_frequency}>"

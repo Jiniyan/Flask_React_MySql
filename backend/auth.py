@@ -6,6 +6,7 @@ from flask_cors import cross_origin  # Import cross_origin
 from db import db
 from models import User
 from flask import session, make_response
+
 auth = Blueprint('auth', __name__)
 
 @auth.route('/register', methods=['POST'])
@@ -35,6 +36,11 @@ def login():
     
     if user and check_password_hash(user.password, password):
         login_user(user)
+        
+        # 🧠 Debug print
+        print(f"[DEBUG] Current user authenticated: {current_user.is_authenticated}")
+        print(f"[DEBUG] Flask session contents: {dict(session)}")
+        
         return jsonify({"message": "Login successful"}), 200
 
     return jsonify({"error": "Invalid username/email or password."}), 401
@@ -50,10 +56,8 @@ def logout():
     logout_user()
     session.clear()
 
-    # Create response and remove session cookie
     response = make_response(jsonify({"message": "Logged out successfully"}))
-    response.set_cookie('session', '', expires=0, path='/', samesite='Lax')
-
+    response.set_cookie('session', '', expires=0, path='/', httponly=True, samesite='Lax')
     return response
 
 @auth.route('/status')

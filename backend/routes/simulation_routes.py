@@ -7,6 +7,8 @@ import requests  # Used to call the report generation endpoint internally
 from report_generator import generate_simulation_report  # Import the generate function from report_generator
 import json
 from bridge_status import get_arduino_status, trigger_reconnect
+from pytz import timezone
+ph_tz = timezone("Asia/Manila")
 redis_client = redis.Redis()
 
 simulation_bp = Blueprint('simulation', __name__)
@@ -46,7 +48,7 @@ def start_simulation():
         user_id=user_id,
         status='ongoing',
         duration=duration,
-        end_time=datetime.utcnow() + timedelta(minutes=duration),
+        end_time=datetime.now(ph_tz) + timedelta(minutes=duration),
         start_voltage=start_voltage  # ✅ Add this line
 
     )
@@ -73,7 +75,7 @@ def start_simulation():
 
     # Append initial control data point to the data_points list
     initial_data_point = {
-        "time": datetime.utcnow().isoformat(),  # Current timestamp in ISO format
+        "time": datetime.now(ph_tz).isoformat(),
         "frequency": frequency,
         "intensity": intensity,
         "duration": duration
@@ -106,20 +108,28 @@ def start_simulation():
 @simulation_bp.route('/api/simulation-status/<int:user_id>', methods=['GET'])
 def check_simulation_status(user_id):
     user_active_simulation = Simulation.query.filter_by(user_id=user_id, status='ongoing').first()
-    
+
     if user_active_simulation:
-        now = datetime.utcnow()
-        
-        # ✅ Calculate remaining time using system clock
-        elapsed_time = (now - user_active_simulation.created_at).total_seconds()
-        remaining_time = max((user_active_simulation.duration * 60) - elapsed_time, 0)  # Ensure it doesn’t go negative
-        
+        now = datetime.now(ph_tz)
+        created_at = user_active_simulation.created_at  # ✅ define this FIRST
+
+        if created_at.tzinfo is None:
+            created_at = ph_tz.localize(created_at)  # ✅ now this is safe
+
+
+        # 🚫 Remove this block:
+        # if created_at.tzinfo is None:
+        #     created_at = created_at.replace(tzinfo=timezone("UTC")).astimezone(ph_tz)
+
+        # ✅ Just subtract directly
+        elapsed_time = (now - created_at).total_seconds()
+        remaining_time = max((user_active_simulation.duration * 60) - elapsed_time, 0)
+
+        # ✅ Mark as completed if time is up
         if remaining_time <= 0:
-            # ✅ Mark simulation as completed when time runs out
             user_active_simulation.status = 'completed'
             db.session.commit()
 
-            # ✅ Generate report only if it hasn’t been generated
             if not user_active_simulation.report_generated:
                 generate_simulation_report(user_active_simulation)
 
@@ -128,7 +138,7 @@ def check_simulation_status(user_id):
                 "user_simulation_id": user_active_simulation.id
             }), 200
 
-# Get current control config
+        # Get current control config
         control = Control.query.filter_by(simulation_id=user_active_simulation.id).first()
 
         return jsonify({
@@ -136,12 +146,10 @@ def check_simulation_status(user_id):
             "status": "ongoing",
             "remaining_time": remaining_time,
             "duration": user_active_simulation.duration,
-            "start_time": user_active_simulation.created_at.isoformat(),  # ✅ Needed for accurate end time
-            "frequency": control.current_frequency if control else 0,      # ✅ Echo back control settings
+            "start_time": created_at.isoformat(),
+            "frequency": control.current_frequency if control else 0,
             "amplitude": control.current_intensity if control else 0
         }), 200
-
-
 
     return jsonify({
         "status": "No active simulations.",
@@ -169,8 +177,11 @@ def stop_simulation():
         "intensity": 0,
         "duration": 0  # Duration is not used when stopping, but you can include it if necessary
     }
-    redis_client.publish("control_updates", json.dumps(control_data))  # Publish to Redis channel
-    print(f"Published stop control data to Redis: {control_data}")
+    redis_client.publish("control_updates", json.dumps(control_data))  # Publish control data to Redis channel
+    print(f"Published control data to Redis: {control_data}")
+    print(f"Published control data to Redis: {control_data}")
+
+
 
     return jsonify({"message": "Simulation stopped successfully!"}), 200
 # Route to generate a report for a simulation (can also be used if needed separately)
@@ -207,6 +218,33 @@ def get_recent_simulations(user_id):
     return jsonify(simulations)
 
 
+@simulation_bp.route('/api/simulation-report/<int:simulation_id>', methods=['GET'])
+def get_simulation_report(simulation_id):
+    """
+    Retrieve the simulation report data for the specified simulation ID.
+    The report includes start_voltage, end_voltage, voltage_drop,
+    battery_status, duration, and other relevant simulation details.
+    """
+    simulation = Simulation.query.get(simulation_id)
+    if not simulation:
+        return jsonify({"error": "Simulation not found"}), 404
+
+    # If duration is stored as a float (minutes) you can simply send it;
+    # otherwise, format it as desired.
+    report_data = {
+        "simulation_id": simulation.id,
+        "user_id": simulation.user_id,
+        "status": simulation.status,
+        "start_voltage": simulation.start_voltage,
+        "end_voltage": simulation.end_voltage,
+        "voltage_drop": simulation.voltage_drop,
+        "battery_status": simulation.battery_status,
+        "duration": simulation.duration,
+        "created_at": simulation.created_at.isoformat() if simulation.created_at else None,
+        "end_time": simulation.end_time.isoformat() if simulation.end_time else None,
+        "report_generated": simulation.report_generated
+    }
+    return jsonify(report_data), 200
 
 @simulation_bp.route('/api/sensor-status', methods=['GET'])
 def sensor_status():

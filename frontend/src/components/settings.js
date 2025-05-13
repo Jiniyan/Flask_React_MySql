@@ -40,7 +40,9 @@ const Settings = () => {
     setIsLoggingOut(true);
     try {
       await axiosInstance.post('/auth/logout');
+      localStorage.removeItem('token');
       navigate('/login');
+      
     } catch (error) {
       console.error('Logout failed:', error);
       alert('Logout failed. Please try again.');
