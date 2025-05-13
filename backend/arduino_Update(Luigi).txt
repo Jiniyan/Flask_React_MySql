@@ -1,0 +1,455 @@
+#include <Wire.h>
+#include <Adafruit_ADXL345_U.h>
+#include <Adafruit_INA219.h>
+#include <Adafruit_MLX90614.h>
+#include <arduinoFFT.h>
+unsigned long lastPIDTime = 0;
+const unsigned long pidCooldown = 5000;  // 1.5 seconds cooldown
+bool pidEnabled = 1;  // default is enabled, can be changed via serial
+
+int adxlZeroCount = 0;
+const int adxlZeroThreshold = 10;
+
+#define SAMPLES 64
+#define SAMPLING_FREQUENCY 200
+ArduinoFFT<double> FFT(NULL, NULL, SAMPLES, SAMPLING_FREQUENCY);
+
+static double vReal[SAMPLES];
+static double vImag[SAMPLES];
+static uint8_t sampleIndex = 0;
+static bool bufferReady = false;
+static double fft_xOffset = 0.0;
+
+unsigned long lastSampleTime = 0;
+const unsigned long sampleIntervalMs = (unsigned long)(1000.0 / SAMPLING_FREQUENCY);
+
+static double dominantFrequency = 0.0;
+static double smoothedFrequency = 0.0;
+const double smoothingFactor = 0.6;
+
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+Adafruit_ADXL345_Unified adxl = Adafruit_ADXL345_Unified(12345);
+Adafruit_INA219 ina219(0x40);
+
+const int chargeRelayPin = 8;
+const int dischargeRelayPin = 7;
+int relayState = 1;
+
+const int pwmPin = 9;
+const int pwmStep = 5;
+const int maxPWM = 256;
+const float minVoltage = -1;
+
+int targetPWM = 0;
+int currentPWM = 0;
+
+float intendedFrequency = 0;
+unsigned long lastPWMAdjustTime = 0;
+double pidIntegral = 0;
+double lastFreqError = 0;
+
+struct CalibrationPoint {
+    float raw;
+    float reference;
+};
+
+CalibrationPoint tempCal[3] = {
+    {6.13, 4.70},
+    {36.06, 36.10},
+    {46.69, 46.70}
+};
+
+bool adxlOK = false;
+bool ina219OK = false;
+bool mlxOK = false;
+
+const unsigned long publishInterval = 5;
+unsigned long lastPublishTime = 0;
+
+volatile bool commandInProgress = false;
+String lastRelayCommand = "";
+static int lastMotorCommand = -1;
+
+void setup() {
+    Serial.begin(115200);
+    delay(1000);
+    flushSerialBuffer();
+
+    Wire.begin();
+    Wire.setWireTimeout(50000, true);
+    delay(1000);
+    while (Serial.available()) Serial.read();
+
+    adxlOK = adxl.begin();
+    if (adxlOK) {
+        adxl.setDataRate(ADXL345_DATARATE_200_HZ);
+        adxl.setRange(ADXL345_RANGE_4_G);
+        Serial.println("✅ ADXL345 initialized with 200 Hz rate and ±16G range.");
+    } else {
+        Serial.println("❌ ADXL345 not detected.");
+    }
+
+    ina219OK = ina219.begin();
+    mlxOK = mlx.begin();
+
+    pinMode(pwmPin, OUTPUT);
+    pinMode(chargeRelayPin, OUTPUT);
+    pinMode(dischargeRelayPin, OUTPUT);
+    setRelayState("NEUTRAL");
+
+    Serial.println("=== CSV MODE: ARDUINO READY ===");
+}
+
+void loop() {
+    checkAndReconnectSensors();
+
+    if (checkVoltageSafety()) {
+        if (millis() - lastPWMAdjustTime >= 5000) {
+            adjustPWMToMeetFrequency();
+            lastPWMAdjustTime = millis();
+        }
+
+        if (currentPWM != targetPWM) {
+            currentPWM += (currentPWM < targetPWM) ? pwmStep : -pwmStep;
+            analogWrite(pwmPin, currentPWM);
+            Serial.println(currentPWM);
+        }
+
+        if (millis() - lastSampleTime >= sampleIntervalMs) {
+            lastSampleTime = millis();
+            if (sampleIndex < SAMPLES && adxlOK) {
+                sensors_event_t event;
+                if (!safeGetADXL345Event(event)) {
+                    Serial.println("Invalid or timeout in ADXL345 reading, skipping sample...");
+                    adxlOK = false;
+                    return;
+                }
+                double rawX = (double)event.acceleration.x;
+                fft_xOffset = 0.99 * fft_xOffset + 0.011 * rawX;
+                double filteredX = rawX - fft_xOffset;
+                vReal[sampleIndex] = filteredX;
+                vImag[sampleIndex] = 0.0;
+                sampleIndex++;
+            } else {
+                bufferReady = true;
+            }
+        }
+
+        if (bufferReady) {
+            performFFTandFindPeak();
+            sampleIndex = 0;
+            bufferReady = false;
+        }
+
+        if (!commandInProgress && (millis() - lastPublishTime >= publishInterval)) {
+            lastPublishTime = millis();
+            publishCSVSensorData();
+        }
+    } else {
+        Serial.println("LOW VOLTAGE DETECTED! Stopping motor and relays.");
+        stopAllOperations();
+    }
+}
+
+void adjustPWMToMeetFrequency() {
+    if (!pidEnabled) {
+        Serial.println("[PID] Skipped: PID is currently disabled.");
+        return;
+    }
+
+    float calibratedFreq = calibrateFrequency(dominantFrequency);
+
+    // Skip PID if frequency is too low or not enough time has passed
+    if (intendedFrequency < 10 || millis() - lastPIDTime < pidCooldown) {
+        return;
+    }
+
+    double error = intendedFrequency - calibratedFreq;
+
+    // TUNED GAINS: reduce PID aggressiveness
+    double Kp = 1.2;    // Previously 2.0
+    double Ki = 0.05;   // Previously 0.1
+    double Kd = 0.05;   // Previously 0.1
+
+    if ((error > 0 && lastFreqError < 0) || (error < 0 && lastFreqError > 0)) {
+        pidIntegral *= 0.5;
+    }
+
+    pidIntegral += error;
+    pidIntegral = constrain(pidIntegral, -30, 30); // tighter range
+
+    if (abs(error) < 0.3) {
+        Serial.println("[PID] Within deadband. Skipping adjustment.");
+        return;
+    }
+
+    double derivative = error - lastFreqError;
+    double output = Kp * error + Ki * pidIntegral + Kd * derivative;
+
+    int step = constrain((int)output, -3, 3);  // slower step
+    Serial.print("[PID] Intended:"); Serial.print(intendedFrequency);
+    Serial.print("Hz, Measured:"); Serial.print(calibratedFreq);
+    Serial.print("Hz, Error:"); Serial.print(error);
+    Serial.print(", PID Output:"); Serial.print(output);
+    Serial.print(", PWM Step:"); Serial.println(step);
+
+    targetPWM += step;
+    targetPWM = constrain(targetPWM, 0, maxPWM);
+
+    lastFreqError = error;
+    lastPIDTime = millis();  // reset cooldown timer
+}
+
+
+int mapPWMToFrequency(int pwm) {
+     if(pwm ==0){
+      return 0;
+     }
+     return 0.2152 * pwm - 0.7103;
+}
+
+void performFFTandFindPeak() {
+    FFT.setArrays(vReal, vImag);
+    FFT.windowing(FFTWindow::Hann, FFTDirection::Forward);
+    FFT.compute(FFTDirection::Forward);
+    FFT.complexToMagnitude();
+
+    double maxMagnitude = 0.0;
+    int maxIndex = 0;
+    const double freqResolution = SAMPLING_FREQUENCY / (double)SAMPLES;
+    const int minBin = 1;
+    const int maxBin = (int)(60.0 / freqResolution);
+
+    for (int i = minBin; i <= maxBin; i++) {
+        double mag = vReal[i];
+        if (mag > maxMagnitude) {
+            maxMagnitude = mag;
+            maxIndex = i;
+        }
+    }
+
+    const double minValidMagnitude = 0.3;
+    double currentFrequency = (maxMagnitude > minValidMagnitude) ? maxIndex * freqResolution : 0.0;
+
+    smoothedFrequency = smoothingFactor * smoothedFrequency + (1 - smoothingFactor) * currentFrequency;
+    dominantFrequency = smoothedFrequency;
+}
+
+void serialEvent() {
+    commandInProgress = true;
+    while (Serial.available() > 0) {
+        String command = Serial.readStringUntil('\n');
+        command.trim();
+
+        if (command.startsWith("MOTOR:")) {
+            int pwmValue = command.substring(6).toInt();
+            if (pwmValue >=0 && pwmValue <= maxPWM && pwmValue != lastMotorCommand) {
+                targetPWM = pwmValue;
+                lastMotorCommand = pwmValue;
+                intendedFrequency  = mapPWMToFrequency(targetPWM);
+                pidIntegral = 0;
+                lastFreqError = 0;
+            }
+            
+        } else if (command.startsWith("RELAY:")) {
+            if (command != lastRelayCommand) {
+                lastRelayCommand = command;
+                if (command == "RELAY:CHARGE") setRelayState("CHARGE");
+                else if (command == "RELAY:DISCHARGE") setRelayState("DISCHARGE");
+                else if (command == "RELAY:NEUTRAL") setRelayState("NEUTRAL");
+            }
+        }
+    }
+    commandInProgress = false;
+}
+
+  void checkAndReconnectSensors() {
+      if (!adxlOK) {
+          adxlOK = adxl.begin();
+          if (adxlOK) {
+              adxl.setDataRate(ADXL345_DATARATE_200_HZ);
+              adxl.setRange(ADXL345_RANGE_16_G);
+              Serial.println("ADXL345 reconnected!");
+          }
+      }
+      if (!ina219OK) {
+          ina219OK = ina219.begin();
+          if (ina219OK) Serial.println("INA219 reconnected!");
+      }
+      if (!mlxOK) {
+          mlxOK = mlx.begin();
+          if (mlxOK) Serial.println("MLX90614 reconnected!");
+      }
+  }
+
+  void publishCSVSensorData() {
+      float calibratedZ = 0.0;
+      float voltage = 0.0;
+      float temp = 0.0;
+
+if (adxlOK) {
+    sensors_event_t event;
+    adxl.getEvent(&event);
+
+    // Raw acceleration readings
+    float rawX = event.acceleration.x;
+    float rawY = event.acceleration.y;
+    float rawZ = event.acceleration.z;
+
+    // ----- Sanity Check on all axes -----
+    rawX = constrain(rawX, -16.0, 16.0);
+    rawY = constrain(rawY, -16.0, 16.0);
+    rawZ = constrain(rawZ, -16.0, 16.0);
+
+    // High-pass filter on all axes
+    static float filteredX = 0.0;
+    static float filteredY = 0.0;
+    static float filteredZ = 0.0;
+
+    float alpha = 0.9;  // adjust filter strength here
+
+    filteredX = alpha * filteredX + (1 - alpha) * rawX;
+    filteredY = alpha * filteredY + (1 - alpha) * rawY;
+    filteredZ = alpha * filteredZ + (1 - alpha) * rawZ;
+
+    float hpX = rawX - filteredX;
+    float hpY = rawY - filteredY;
+    float hpZ = rawZ - filteredZ;
+
+    // Compute 3-axis high-pass vibration magnitude
+    float vibrationMagnitude = sqrt(hpX * hpX + hpY * hpY + hpZ * hpZ);
+
+    // Keep variable name for output compatibility
+    calibratedZ = vibrationMagnitude;
+}
+
+
+
+      if (ina219OK) {
+          voltage = ina219.getBusVoltage_V();
+      }
+
+      if (mlxOK) {
+          float rawTemp = mlx.readObjectTempC();
+          temp = getCalibratedTemperature(rawTemp);
+      }
+      float calibratedFreq = calibrateFrequency(dominantFrequency);
+
+
+      // Print CSV:
+      //   Calibrated Z, Voltage, Temp, RelayState, millis, DominantFreq
+      Serial.print(calibratedZ, 3);   Serial.print(",");
+      Serial.print(voltage, 2);       Serial.print(",");
+      Serial.print(temp, 2);          Serial.print(",");
+      Serial.print(relayState);       Serial.print(",");
+      Serial.print(millis());         Serial.print(",");
+      Serial.println(calibratedFreq, 2);
+  }
+
+  void setRelayState(String state) {
+      if (state == "CHARGE") {
+          digitalWrite(chargeRelayPin, LOW);
+          digitalWrite(dischargeRelayPin, HIGH);
+          relayState = 2;
+      } else if (state == "DISCHARGE") {
+          digitalWrite(chargeRelayPin, HIGH);
+          digitalWrite(dischargeRelayPin, LOW);
+          relayState = 0;
+      } else {
+          digitalWrite(chargeRelayPin, HIGH);
+          digitalWrite(dischargeRelayPin, HIGH);
+          relayState = 1;
+      }
+  }
+
+  bool checkVoltageSafety() {
+      return ina219OK ? (ina219.getBusVoltage_V() > minVoltage) : true;
+  }
+
+  void stopAllOperations() {
+      targetPWM = 0;
+      currentPWM = 0;
+      analogWrite(pwmPin, 0);
+      setRelayState("NEUTRAL");
+  }
+
+  float getCalibratedTemperature(float rawTemp) {
+      if (rawTemp <= tempCal[0].raw) {
+          return tempCal[0].reference + (rawTemp - tempCal[0].raw);
+      } else if (rawTemp <= tempCal[1].raw) {
+          float slope1 = (tempCal[1].reference - tempCal[0].reference) /
+                        (tempCal[1].raw - tempCal[0].raw);
+          return tempCal[0].reference + slope1 * (rawTemp - tempCal[0].raw);
+      } else if (rawTemp <= tempCal[2].raw) {
+          float slope2 = (tempCal[2].reference - tempCal[1].reference) /
+                        (tempCal[2].raw - tempCal[1].raw);
+          return tempCal[1].reference + slope2 * (rawTemp - tempCal[1].raw);
+      } else {
+          return tempCal[2].reference + (rawTemp - tempCal[2].raw);
+      }
+  }
+
+  float calibrateFrequency(float rawFreq) {
+    const int numPoints = 8;
+    // Calibration mapping: Measured (Arduino) frequency -> Real frequency
+    float measured[numPoints] = { 0,   15.6,31,     40,   46.7, 59,  68,  81};
+    float realFreq[numPoints] = { 0,  10.0, 20,    25.5,  30,   39,  46, 52.6};
+
+    // If raw frequency is below the lowest measured value, return the corresponding real frequency
+    if (rawFreq <= measured[0]) {
+        return realFreq[0];
+    }
+    // If raw frequency is above the highest measured value, return the highest real frequency
+    if (rawFreq >= measured[numPoints - 1]) {
+        return realFreq[numPoints - 1];
+    }
+    
+    // Otherwise, find the interval that contains rawFreq and interpolate linearly.
+    for (int i = 0; i < numPoints - 1; i++) {
+        if (rawFreq >= measured[i] && rawFreq <= measured[i+1]) {
+            float ratio = (rawFreq - measured[i]) / (measured[i+1] - measured[i]);
+            return realFreq[i] + ratio * (realFreq[i+1] - realFreq[i]);
+        }
+    }
+    
+    return rawFreq;  // Fallback (should not reach here)
+}
+
+void flushSerialBuffer() {
+  while (Serial.available() > 0) {
+    Serial.read();
+  }
+}
+bool isValidAcceleration(const sensors_event_t &event) {
+  // Assuming expected acceleration is within ±16G
+  return (event.acceleration.x >= -16 && event.acceleration.x <= 16 &&
+          event.acceleration.y >= -16 && event.acceleration.y <= 16 &&
+          event.acceleration.z >= -16 && event.acceleration.z <= 16);
+}
+
+bool safeGetADXL345Event(sensors_event_t &event) {
+  unsigned long startTime = millis();
+  
+  // Attempt to get the event data; this call should respect the Wire timeout set in setup().
+  adxl.getEvent(&event);
+  
+  // Check if all acceleration values are 0, which might indicate a failure.
+  if (event.acceleration.x == 0.0 && event.acceleration.y == 0.0 && event.acceleration.z == 0.0) {
+    adxlZeroCount++;
+    if (adxlZeroCount >= adxlZeroThreshold) {
+      // If we've seen several consecutive zeros, consider the sensor unresponsive.
+      adxlZeroCount = 0;  // Reset counter for the next attempt
+      return false;
+    }
+  } else {
+    // Valid data (non-zero) resets the counter.
+    adxlZeroCount = 0;
+  }
+  
+  // Check if the read took too long (indicating a possible timeout)
+  if ((millis() - startTime) > 100) {  // Adjust threshold as needed
+    return false;
+  }
+  
+  return true;
+}
